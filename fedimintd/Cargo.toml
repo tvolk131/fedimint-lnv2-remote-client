@@ -13,7 +13,6 @@ path = "src/fedimintd.rs"
 anyhow = { workspace = true }
 fedimintd = { workspace = true }
 tokio = { workspace = true }
-roastr-server = { path = "../roastr-server" }
 roastr-common = { path = "../roastr-common" }
 rand = { workspace = true }
 schnorr_fun = { workspace = true }

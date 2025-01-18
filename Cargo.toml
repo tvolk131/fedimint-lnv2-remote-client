@@ -4,7 +4,6 @@ members = [
     "fedimint-cli",
     "roastr-common",
     "roastr-client",
-    "roastr-server",
     "roastr-tests",
 ]
 resolver = "2"
