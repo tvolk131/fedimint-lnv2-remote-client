@@ -1,5 +1,5 @@
 [package]
-name = "roastr-client"
+name = "fedimint-lnv2-remote-client"
 version = "0.0.1"
 authors = ["m1sterc001guy"]
 edition = "2021"
@@ -19,7 +19,7 @@ async-trait = { workspace = true }
 anyhow = { workspace = true }
 bitcoin = { workspace = true }
 clap = { workspace = true, optional = true }
-roastr-common = { path = "../roastr-common" }
+fedimint-lnv2-remote-common = { path = "../fedimint-lnv2-remote-common" }
 fedimint-api-client = { workspace = true }
 fedimint-client = { workspace = true }
 fedimint-core = { workspace = true }

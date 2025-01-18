@@ -1,5 +1,5 @@
 [package]
-name = "roastr-tests"
+name = "fedimint-lnv2-remote-tests"
 version = "0.0.1"
 authors = ["m1sterc001guy"]
 edition = "2021"
@@ -15,7 +15,7 @@ path = "bin/tests.rs"
 anyhow = { workspace = true }
 devimint = { workspace = true }
 fedimint-core = { workspace = true }
-roastr-common = { path = "../roastr-common" }
+fedimint-lnv2-remote-common = { path = "../fedimint-lnv2-remote-common" }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }

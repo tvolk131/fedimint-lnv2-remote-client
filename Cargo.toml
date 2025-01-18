@@ -2,9 +2,9 @@
 members = [
     "fedimintd",
     "fedimint-cli",
-    "roastr-common",
-    "roastr-client",
-    "roastr-tests",
+    "fedimint-lnv2-remote-common",
+    "fedimint-lnv2-remote-client",
+    "fedimint-lnv2-remote-tests",
 ]
 resolver = "2"
 
@@ -12,7 +12,7 @@ resolver = "2"
 version = "0.0.1"
 
 [workspace.metadata]
-name = "roastr"
+name = "fedimint-lnv2-remote"
 authors = ["The Fedimint Developers"]
 edition = "2021"
 description = "Fedimint compiled with custom module set"

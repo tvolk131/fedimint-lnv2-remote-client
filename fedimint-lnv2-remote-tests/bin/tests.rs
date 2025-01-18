@@ -5,7 +5,7 @@ use devimint::cmd;
 use devimint::federation::Client;
 use fedimint_core::task::sleep_in_test;
 use fedimint_core::PeerId;
-use roastr_common::{EventId, SignatureShare, UnsignedEvent};
+use fedimint_lnv2_remote_common::{EventId, SignatureShare, UnsignedEvent};
 use tracing::info;
 
 #[tokio::main]

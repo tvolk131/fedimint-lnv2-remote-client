@@ -1,7 +1,7 @@
 use std::{ffi, iter};
 
 use clap::Parser;
-use roastr_common::EventId;
+use fedimint_lnv2_remote_common::EventId;
 use serde::Serialize;
 use serde_json::json;
 use url::Url;

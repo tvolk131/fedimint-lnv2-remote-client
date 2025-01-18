@@ -2621,6 +2621,65 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedimint-lnv2-remote-client"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bitcoin",
+ "clap",
+ "erased-serde",
+ "fedimint-api-client",
+ "fedimint-client",
+ "fedimint-core",
+ "fedimint-lnv2-remote-common",
+ "futures",
+ "nostr-sdk",
+ "rand",
+ "schnorr_fun",
+ "secp256k1 0.29.0",
+ "serde",
+ "serde_json",
+ "sha2",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
+ "thiserror 2.0.11",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "fedimint-lnv2-remote-common"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode2",
+ "bitcoin",
+ "fedimint-core",
+ "nostr-sdk",
+ "rand",
+ "schnorr_fun",
+ "serde",
+ "sha2",
+ "thiserror 2.0.11",
+ "tracing",
+]
+
+[[package]]
+name = "fedimint-lnv2-remote-tests"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "devimint",
+ "fedimint-core",
+ "fedimint-lnv2-remote-common",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "fedimint-lnv2-server"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6247,9 +6306,9 @@ dependencies = [
  "anyhow",
  "fedimint-build 0.4.0-alpha",
  "fedimint-core",
+ "fedimint-lnv2-remote-common",
  "fedimintd",
  "rand",
- "roastr-common",
  "schnorr_fun",
  "sha2",
  "tokio",
@@ -6263,67 +6322,8 @@ dependencies = [
  "fedimint-build 0.4.0-alpha",
  "fedimint-cli",
  "fedimint-core",
- "roastr-client",
+ "fedimint-lnv2-remote-client",
  "tokio",
-]
-
-[[package]]
-name = "roastr-client"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "bitcoin",
- "clap",
- "erased-serde",
- "fedimint-api-client",
- "fedimint-client",
- "fedimint-core",
- "futures",
- "nostr-sdk",
- "rand",
- "roastr-common",
- "schnorr_fun",
- "secp256k1 0.29.0",
- "serde",
- "serde_json",
- "sha2",
- "strum 0.26.3",
- "strum_macros 0.26.4",
- "thiserror 2.0.11",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "roastr-common"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "bincode2",
- "bitcoin",
- "fedimint-core",
- "nostr-sdk",
- "rand",
- "schnorr_fun",
- "serde",
- "sha2",
- "thiserror 2.0.11",
- "tracing",
-]
-
-[[package]]
-name = "roastr-tests"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "devimint",
- "fedimint-core",
- "roastr-common",
- "serde_json",
- "tokio",
- "tracing",
 ]
 
 [[package]]

@@ -13,7 +13,9 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 fedimint-cli = { workspace = true }
 fedimint-core = { workspace = true }
-roastr-client = { path = "../roastr-client", features = ["cli"] }
+fedimint-lnv2-remote-client = { path = "../fedimint-lnv2-remote-client", features = [
+    "cli",
+] }
 tokio = { workspace = true }
 
 [build-dependencies]

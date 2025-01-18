@@ -19,17 +19,17 @@ use fedimint_core::invite_code::InviteCode;
 use fedimint_core::module::{ApiAuth, ApiRequestErased, ApiVersion, ModuleCommon, MultiApiVersion};
 use fedimint_core::time::now;
 use fedimint_core::{apply, async_trait_maybe_send, Amount, PeerId};
-use nostr_sdk::secp256k1::schnorr::Signature;
-use nostr_sdk::{
-    Alphabet, Client, JsonUtil, Keys, Kind, Metadata, SingleLetterTag, Tag, TagKind, ToBech32, Url,
-};
-use roastr_common::endpoint_constants::{
+use fedimint_lnv2_remote_common::endpoint_constants::{
     CREATE_NOTE_ENDPOINT, GET_EVENTS_ENDPOINT, GET_EVENT_ENDPOINT, GET_EVENT_SESSIONS_ENDPOINT,
     GET_NUM_NONCES_ENDPOINT, SIGN_NOTE_ENDPOINT,
 };
-use roastr_common::{
+use fedimint_lnv2_remote_common::{
     peer_id_to_scalar, EventId, Frost, GetUnsignedEventRequest, RoastrCommonInit, RoastrKey,
     RoastrModuleTypes, SignatureShare, SigningSession, UnsignedEvent, KIND,
+};
+use nostr_sdk::secp256k1::schnorr::Signature;
+use nostr_sdk::{
+    Alphabet, Client, JsonUtil, Keys, Kind, Metadata, SingleLetterTag, Tag, TagKind, ToBech32, Url,
 };
 use schnorr_fun::{frost, Message};
 use serde::{Deserialize, Serialize};
