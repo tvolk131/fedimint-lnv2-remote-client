@@ -1,0 +1,39 @@
+[package]
+name = "roastr-client"
+version = "0.0.1"
+authors = ["m1sterc001guy"]
+edition = "2021"
+description = "A federated nostr client."
+license = "MIT"
+
+[lib]
+name = "roastr_client"
+path = "src/lib.rs"
+
+[features]
+default = []
+cli = ["dep:clap"]
+
+[dependencies]
+async-trait = { workspace = true }
+anyhow = { workspace = true }
+bitcoin = { workspace = true }
+clap = { workspace = true, optional = true }
+roastr-common = { path = "../roastr-common" }
+fedimint-api-client = { workspace = true }
+fedimint-client = { workspace = true }
+fedimint-core = { workspace = true }
+futures = { workspace = true }
+erased-serde = { workspace = true }
+nostr-sdk = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+secp256k1 = { workspace = true }
+schnorr_fun = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+strum = { workspace = true }
+strum_macros = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }

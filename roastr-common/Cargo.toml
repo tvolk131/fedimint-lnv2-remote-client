@@ -1,0 +1,28 @@
+[package]
+name = "roastr-common"
+version = "0.0.1"
+authors = ["m1sterc001guy"]
+edition = "2021"
+description = "A federated nostr client."
+license = "MIT"
+
+[package.metadata.docs.rs]
+rustc-args = ["--cfg", "tokio_unstable"]
+
+[lib]
+name = "roastr_common"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+bitcoin = { workspace = true }
+bincode2 = { workspace = true }
+fedimint-core ={ workspace = true }
+nostr-sdk = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+serde = { workspace = true }
+schnorr_fun = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }

@@ -1,0 +1,24 @@
+[package]
+name = "roastr"
+version = "0.0.1"
+authors = ["m1sterc001guy"]
+edition = "2021"
+description = "fedimintd with a nostr module"
+
+[[bin]]
+name = "fedimintd"
+path = "src/fedimintd.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+fedimintd = { workspace = true }
+tokio = { workspace = true }
+roastr-server = { path = "../roastr-server" }
+roastr-common = { path = "../roastr-common" }
+rand = { workspace = true }
+schnorr_fun = { workspace = true }
+sha2 = { workspace = true }
+fedimint-core = { workspace = true }
+
+[build-dependencies]
+fedimint-build = { git = "https://github.com/fedimint/fedimint" }

@@ -1,0 +1,21 @@
+[package]
+name = "roastr-tests"
+version = "0.0.1"
+authors = ["m1sterc001guy"]
+edition = "2021"
+description = "A federated nostr client."
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "roastr-devimint-tests"
+path = "bin/tests.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+devimint = { workspace = true }
+fedimint-core = { workspace = true }
+roastr-common = { path = "../roastr-common" }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
