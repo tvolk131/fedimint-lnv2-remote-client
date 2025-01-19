@@ -824,16 +824,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bincode2"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f49f6183038e081170ebbbadee6678966c7d54728938a3e7de7f4e780770318f"
-dependencies = [
- "byteorder",
- "serde",
-]
-
-[[package]]
 name = "bincode_derive"
 version = "2.0.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2625,6 +2615,7 @@ name = "fedimint-lnv2-remote-client"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "async-stream",
  "async-trait",
  "bitcoin",
  "clap",
@@ -2632,8 +2623,10 @@ dependencies = [
  "fedimint-api-client",
  "fedimint-client",
  "fedimint-core",
- "fedimint-lnv2-remote-common",
+ "fedimint-lnv2-common",
+ "fedimint-tpe",
  "futures",
+ "lightning-invoice",
  "nostr-sdk",
  "rand",
  "schnorr_fun",
@@ -2644,26 +2637,9 @@ dependencies = [
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "thiserror 2.0.11",
+ "tokio",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "fedimint-lnv2-remote-common"
-version = "0.0.1"
-dependencies = [
- "anyhow",
- "async-trait",
- "bincode2",
- "bitcoin",
- "fedimint-core",
- "nostr-sdk",
- "rand",
- "schnorr_fun",
- "serde",
- "sha2",
- "thiserror 2.0.11",
- "tracing",
 ]
 
 [[package]]
@@ -2673,7 +2649,6 @@ dependencies = [
  "anyhow",
  "devimint",
  "fedimint-core",
- "fedimint-lnv2-remote-common",
  "serde_json",
  "tokio",
  "tracing",
@@ -6306,7 +6281,6 @@ dependencies = [
  "anyhow",
  "fedimint-build 0.4.0-alpha",
  "fedimint-core",
- "fedimint-lnv2-remote-common",
  "fedimintd",
  "rand",
  "schnorr_fun",

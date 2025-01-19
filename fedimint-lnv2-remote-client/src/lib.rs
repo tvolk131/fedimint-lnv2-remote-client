@@ -1,488 +1,125 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::ops::Deref;
-use std::time::{Duration, SystemTime};
-use std::{ffi, mem};
+#![deny(clippy::pedantic)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::must_use_candidate)]
 
-use bitcoin::Network;
-use fedimint_api_client::api::{self, DynModuleApi, FederationApiExt};
-use fedimint_api_client::query::{QueryStep, QueryStrategy};
-use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
-use fedimint_client::module::recovery::NoModuleBackup;
-use fedimint_client::module::{ClientContext, ClientModule, IClientModule};
-use fedimint_client::sm::{Context, DynState, State};
-use fedimint_client::DynGlobalClientContext;
-use fedimint_core::config::{ClientModuleConfig, FederationId};
-use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
-use fedimint_core::db::DatabaseTransaction;
-use fedimint_core::encoding::{Decodable, Encodable};
-use fedimint_core::invite_code::InviteCode;
-use fedimint_core::module::{ApiAuth, ApiRequestErased, ApiVersion, ModuleCommon, MultiApiVersion};
-use fedimint_core::time::now;
-use fedimint_core::{apply, async_trait_maybe_send, Amount, PeerId};
-use fedimint_lnv2_remote_common::endpoint_constants::{
-    CREATE_NOTE_ENDPOINT, GET_EVENTS_ENDPOINT, GET_EVENT_ENDPOINT, GET_EVENT_SESSIONS_ENDPOINT,
-    GET_NUM_NONCES_ENDPOINT, SIGN_NOTE_ENDPOINT,
-};
-use fedimint_lnv2_remote_common::{
-    peer_id_to_scalar, EventId, Frost, GetUnsignedEventRequest, RoastrCommonInit, RoastrKey,
-    RoastrModuleTypes, SignatureShare, SigningSession, UnsignedEvent, KIND,
-};
-use nostr_sdk::secp256k1::schnorr::Signature;
-use nostr_sdk::{
-    Alphabet, Client, JsonUtil, Keys, Kind, Metadata, SingleLetterTag, Tag, TagKind, ToBech32, Url,
-};
-use schnorr_fun::{frost, Message};
-use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use tracing::error;
-
+mod api;
+mod claim_sm;
 #[cfg(feature = "cli")]
 mod cli;
 mod db;
+mod remote_receive_sm;
 
-pub struct RoastrClientModule {
-    pub frost_key: RoastrKey,
-    pub module_api: DynModuleApi,
-    pub frost: Frost,
-    pub admin_auth: Option<ApiAuth>,
-    pub nostr_client: Client,
-    pub federation_id: FederationId,
-    pub client_ctx: ClientContext<Self>,
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::time::Duration;
+
+use async_stream::stream;
+use bitcoin::hashes::{sha256, Hash};
+use bitcoin::secp256k1;
+use db::GatewayKey;
+use fedimint_api_client::api::DynModuleApi;
+use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
+use fedimint_client::module::recovery::NoModuleBackup;
+use fedimint_client::module::{ClientContext, ClientModule};
+use fedimint_client::sm::util::MapStateTransitions;
+use fedimint_client::sm::{Context, DynState, ModuleNotifier, State, StateTransition};
+use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
+use fedimint_core::config::FederationId;
+use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
+use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::encoding::{Decodable, Encodable};
+use fedimint_core::module::{
+    ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleInit, MultiApiVersion,
+};
+use fedimint_core::task::TaskGroup;
+use fedimint_core::time::duration_since_epoch;
+use fedimint_core::util::SafeUrl;
+use fedimint_core::{apply, async_trait_maybe_send, Amount};
+use fedimint_lnv2_common::config::LightningClientConfig;
+use fedimint_lnv2_common::contracts::{IncomingContract, PaymentImage};
+use fedimint_lnv2_common::gateway_api::{
+    GatewayConnection, GatewayConnectionError, PaymentFee, RealGatewayConnection, RoutingInfo,
+};
+use fedimint_lnv2_common::{
+    Bolt11InvoiceDescription, LightningCommonInit, LightningInvoice, LightningModuleTypes, KIND,
+};
+use futures::StreamExt;
+use lightning_invoice::Bolt11Invoice;
+use secp256k1::{ecdh, Keypair, PublicKey, Scalar};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use thiserror::Error;
+use tpe::{derive_agg_decryption_key, AggregateDecryptionKey};
+use tracing::warn;
+
+use crate::api::LightningFederationApi;
+use crate::claim_sm::{ClaimSMCommon, ClaimSMState, ClaimStateMachine};
+use crate::remote_receive_sm::{
+    RemoteReceiveSMCommon, RemoteReceiveSMState, RemoteReceiveStateMachine,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OperationMeta {
+    pub contract: IncomingContract,
+    pub invoice: LightningInvoice,
+    pub custom_meta: Value,
 }
 
-impl std::fmt::Debug for RoastrClientModule {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RoastrClientModule")
-            .field("frost_key", &self.frost_key)
-            .field("module_api", &self.module_api)
-            .finish()
-    }
+/// The final state of an operation receiving a payment over lightning.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum FinalRemoteReceiveOperationState {
+    /// The payment has been confirmed.
+    Funded,
+    /// The payment request has expired.
+    Expired,
 }
+
+/// The final state of an operation receiving a payment over lightning.
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum FinalClaimOperationState {
+    /// The payment has been successfully claimed.
+    Claimed,
+    /// The payment request expired before it was funded.
+    Expired,
+    /// The remote receiver provided a contract that's locked to someone else's
+    /// public key.
+    UnknownKey,
+    /// Either a programming error has occurred or the federation is malicious.
+    Failure,
+}
+
+pub type ReceiveResult = Result<(Bolt11Invoice, OperationId), ReceiveError>;
 
 #[derive(Debug, Clone)]
-pub struct RoastrClientContext {
-    pub decoder: Decoder,
+pub struct LightningClientInit {
+    pub gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
 }
 
-impl Context for RoastrClientContext {
-    const KIND: Option<ModuleKind> = Some(KIND);
-}
-
-#[apply(async_trait_maybe_send!)]
-impl ClientModule for RoastrClientModule {
-    type Init = RoastrClientInit;
-    type Common = RoastrModuleTypes;
-    type Backup = NoModuleBackup;
-    type ModuleStateMachineContext = RoastrClientContext;
-    type States = RoastrClientStateMachine;
-
-    fn context(&self) -> Self::ModuleStateMachineContext {
-        RoastrClientContext {
-            decoder: self.decoder(),
+impl Default for LightningClientInit {
+    fn default() -> Self {
+        LightningClientInit {
+            gateway_conn: Arc::new(RealGatewayConnection),
         }
     }
-
-    // Roastr module does not support transactions so `input_amount` is not required
-    fn input_fee(
-        &self,
-        _amount: Amount,
-        _input: &<Self::Common as ModuleCommon>::Input,
-    ) -> Option<Amount> {
-        None
-    }
-
-    // Roastr module does not support transactions so `output_amount` is not
-    // required
-    fn output_fee(
-        &self,
-        _amount: Amount,
-        _output: &<Self::Common as ModuleCommon>::Output,
-    ) -> Option<Amount> {
-        None
-    }
-
-    #[cfg(feature = "cli")]
-    async fn handle_cli_command(
-        &self,
-        args: &[ffi::OsString],
-    ) -> anyhow::Result<serde_json::Value> {
-        cli::handle_cli_command(self, args).await
-    }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct BroadcastEventResponse {
-    pub federation_npub: String,
-    pub event_id: String,
-}
-
-impl RoastrClientModule {
-    /// Creates a Nostr Text note and proposes it to consensus for signing.
-    pub async fn create_note(&self, text: String) -> anyhow::Result<EventId> {
-        let public_key = self.frost_key.public_key();
-        let unsigned_event =
-            UnsignedEvent::new(nostr_sdk::EventBuilder::text_note(text).build(public_key));
-        self.request_create_note(unsigned_event).await
-    }
-
-    /// Creates a Nostr metadata event and proposes it to consensus for signing
-    pub async fn set_metadata(
-        &self,
-        name: String,
-        display_name: String,
-        about: String,
-        picture: Url,
-    ) -> anyhow::Result<EventId> {
-        let public_key = self.frost_key.public_key();
-        let metadata = Metadata::new()
-            .name(name)
-            .display_name(display_name)
-            .about(about)
-            .picture(picture);
-        let event = nostr_sdk::EventBuilder::metadata(&metadata).build(public_key);
-        self.request_create_note(UnsignedEvent::new(event)).await
-    }
-
-    /// Queries the federation for available notes to sign
-    pub async fn get_all_notes(&self) -> anyhow::Result<HashMap<EventId, UnsignedEvent>> {
-        let admin_auth = self
-            .admin_auth
-            .clone()
-            .ok_or(anyhow::anyhow!("Admin auth not set"))?;
-        let notes: HashMap<EventId, UnsignedEvent> = self
-            .module_api
-            .request_admin(GET_EVENTS_ENDPOINT, ApiRequestErased::default(), admin_auth)
-            .await?;
-        Ok(notes)
-    }
-
-    /// Requests the guardians of the federation to sign the Nostr
-    /// `UnsignedEvent`.
-    async fn request_create_note(&self, unsigned_event: UnsignedEvent) -> anyhow::Result<EventId> {
-        let admin_auth = self
-            .admin_auth
-            .clone()
-            .ok_or(anyhow::anyhow!("Admin auth not set"))?;
-        self.module_api
-            .request_admin(
-                CREATE_NOTE_ENDPOINT,
-                ApiRequestErased::new(unsigned_event.clone()),
-                admin_auth,
-            )
-            .await?;
-        Ok(unsigned_event.compute_id())
-    }
-
-    /// Creates a Federation Announcement Nostr note and proposes it to
-    /// consensus for signing.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create_federation_announcement(
-        &self,
-        name: Option<&str>,
-        picture: Option<String>,
-        about: Option<String>,
-        federation_id: FederationId,
-        network: Network,
-        modules: Vec<String>,
-        invite_codes: Vec<String>,
-    ) -> anyhow::Result<EventId> {
-        let public_key = self.frost_key.public_key();
-        let metadata = {
-            let mut m = nostr_sdk::nostr::Metadata::default();
-            if let Some(name) = name {
-                m = m.name(name);
-            }
-            if let Some(picture) = picture {
-                m = m.picture(Url::parse(&picture)?);
-            }
-            if let Some(about) = about {
-                m = m.about(about);
-            }
-            m
-        };
-
-        let d_tag = Tag::identifier(federation_id.to_string());
-        let n_tag = Tag::custom(
-            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::N)),
-            vec![network.to_string()],
-        );
-        let modules_tag = Tag::custom(
-            TagKind::custom("modules".to_string()),
-            vec![modules.join(",")],
-        );
-        let u_tags = invite_codes.into_iter().map(|code| {
-            Tag::custom(
-                TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::U)),
-                vec![code],
-            )
-        });
-
-        let mut tags = vec![d_tag, n_tag, modules_tag];
-        tags.extend(u_tags);
-
-        let unsigned_event = UnsignedEvent::new(
-            nostr_sdk::EventBuilder::new(Kind::from(38173), metadata.as_json())
-                .tags(tags)
-                .build(public_key),
-        );
-
-        self.request_create_note(unsigned_event).await
-    }
-
-    /// Checks the number of signature shares for the note with `event_id`.
-    /// Constructs the combined signature and attaches it to the Nostr note.
-    /// Finally, the note will be broadcasted to Nostr.
-    pub async fn broadcast_note(
-        &self,
-        event_id: EventId,
-    ) -> anyhow::Result<BroadcastEventResponse> {
-        let signed_event = self.create_signed_note(event_id).await?;
-        self.nostr_client.connect().await;
-        self.nostr_client.send_event(signed_event).await?;
-
-        let federation_npub = self.frost_key.public_key().to_bech32()?;
-
-        Ok(BroadcastEventResponse {
-            federation_npub,
-            event_id: event_id.to_bech32()?,
-        })
-    }
-
-    /// Creates a signature share for a single peer for the note with
-    /// `event_id`.
-    pub async fn sign_note(&self, event_id: EventId) -> anyhow::Result<()> {
-        let admin_auth = self
-            .admin_auth
-            .clone()
-            .ok_or(anyhow::anyhow!("Admin auth not set"))?;
-
-        // Request the peer to sign the event
-        self.module_api
-            .request_admin(
-                SIGN_NOTE_ENDPOINT,
-                ApiRequestErased::new(event_id),
-                admin_auth,
-            )
-            .await?;
-        Ok(())
-    }
-
-    /// Creates a signed Nostr note by checking if enough signature shares have
-    /// been provided by the guardians. If enough signature shares are
-    /// available, the combined schnorr signature is created and attached to
-    /// the Nostr event.
-    pub async fn create_signed_note(&self, event_id: EventId) -> anyhow::Result<nostr_sdk::Event> {
-        let threshold = self.frost_key.threshold();
-        // Verify that at least a `threshold` number of signature shares have been
-        // provided, otherwise we cannot create the signature.
-        let signing_sessions = self.get_signing_sessions(event_id).await?;
-        for (peers, signatures) in signing_sessions {
-            let sorted_peers = peers
-                .split(',')
-                .map(|peer_id| peer_id.parse::<u16>().expect("Invalid peer id").into())
-                .collect::<Vec<PeerId>>();
-
-            if signatures.len() >= threshold {
-                let unsigned_event: Option<UnsignedEvent> = self
-                    .module_api
-                    .request_current_consensus(
-                        GET_EVENT_ENDPOINT.to_string(),
-                        ApiRequestErased::new(GetUnsignedEventRequest {
-                            event_id,
-                            signing_session: SigningSession::new(sorted_peers),
-                        }),
-                    )
-                    .await?;
-
-                let unsigned_event =
-                    unsigned_event.ok_or(anyhow::anyhow!("Not enough signatures for note"))?;
-                let combined = self
-                    .create_frost_signature(signatures, &self.frost_key)
-                    .ok_or(anyhow::anyhow!("Could not create valid FROST signature"))?;
-                let signature = Signature::from_slice(&combined.to_bytes())
-                    .expect("Couldn't create nostr signature");
-                let signed_event = unsigned_event.add_roast_signature(signature)?;
-                return Ok(signed_event);
-            }
-        }
-
-        Err(anyhow::anyhow!("Not enough signatures for note"))
-    }
-
-    /// Queries all peers and retrieves the signing sessions that have been
-    /// created in consensus.
-    pub async fn get_signing_sessions(
-        &self,
-        event_id: EventId,
-    ) -> anyhow::Result<BTreeMap<String, BTreeMap<PeerId, SignatureShare>>> {
-        let sig_shares: BTreeMap<PeerId, BTreeMap<String, SignatureShare>> = self
-            .module_api
-            .request_with_strategy(
-                ThresholdOrDeadline::new(
-                    self.module_api.all_peers().len(),
-                    now() + Duration::from_secs(2),
-                ),
-                GET_EVENT_SESSIONS_ENDPOINT.to_string(),
-                ApiRequestErased::new(event_id),
-            )
-            .await?;
-
-        let mut signing_sessions: BTreeMap<String, BTreeMap<PeerId, SignatureShare>> =
-            BTreeMap::new();
-
-        for (peer_id, inner_map) in sig_shares {
-            for (key, value) in inner_map {
-                signing_sessions
-                    .entry(key)
-                    .or_default()
-                    .insert(peer_id, value);
-            }
-        }
-
-        Ok(signing_sessions)
-    }
-
-    /// Queries a specific peer for the number of nonces that have been
-    /// processed through consensus from other peers.
-    pub async fn get_num_nonces(&self) -> anyhow::Result<BTreeMap<PeerId, usize>> {
-        let admin_auth = self
-            .admin_auth
-            .clone()
-            .ok_or(anyhow::anyhow!("Admin auth not set"))?;
-
-        // Request the peer to sign the event
-        let num_nonces = self
-            .module_api
-            .request_admin(
-                GET_NUM_NONCES_ENDPOINT,
-                ApiRequestErased::default(),
-                admin_auth,
-            )
-            .await?;
-
-        Ok(num_nonces)
-    }
-
-    /// Creates a combined FROST signature under `frost_key` by combining the
-    /// signature `shares` together.
-    fn create_frost_signature(
-        &self,
-        shares: BTreeMap<PeerId, SignatureShare>,
-        frost_key: &RoastrKey,
-    ) -> Option<schnorr_fun::Signature> {
-        let xonly_frost_key = frost_key.into_frost_key().into_xonly_key();
-        let unsigned_event = shares
-            .clone()
-            .into_iter()
-            .next()
-            .expect("No shares were provided")
-            .1
-            .unsigned_event;
-        let session_nonces = shares
-            .clone()
-            .into_iter()
-            .map(|(peer_id, sig_share)| (peer_id_to_scalar(&peer_id), sig_share.nonce.public()))
-            .collect::<BTreeMap<_, _>>();
-
-        let event_id = unsigned_event.compute_id();
-        let message = Message::raw(event_id.as_bytes());
-        let session = self
-            .frost
-            .start_sign_session(&xonly_frost_key, session_nonces, message);
-
-        // Verify each signature share is valid
-        for (peer_id, sig_share) in shares.clone().into_iter() {
-            let curr_index = peer_id_to_scalar(&peer_id);
-            if !self.frost.verify_signature_share(
-                &xonly_frost_key,
-                &session,
-                curr_index,
-                (*sig_share.share.deref()).mark_zero_choice(),
-            ) {
-                error!(%peer_id, "Signature share failed verification");
-                return None;
-            }
-        }
-
-        let frost_shares = shares
-            .clone()
-            .into_values()
-            .map(|sig_share| sig_share.share.mark_zero_choice())
-            .collect::<Vec<_>>();
-
-        // Combine all signature shares into a single schnorr signature.
-        let combined_sig =
-            self.frost
-                .combine_signature_shares(&xonly_frost_key, &session, frost_shares);
-
-        if !self
-            .frost
-            .schnorr
-            .verify(&xonly_frost_key.public_key(), message, &combined_sig)
-        {
-            error!(%combined_sig, "Schnorr signature verification failed");
-            return None;
-        }
-
-        Some(combined_sig)
-    }
-}
-
-/// Creates a Federation Announcement Nostr note by querying other modules for
-/// the necessary data and requests the guardians to sign it.
-pub async fn create_federation_announcement(
-    roastr: &RoastrClientModule,
-    description: Option<String>,
-    network: bitcoin::Network,
-) -> anyhow::Result<EventId> {
-    let federation_id = roastr.federation_id;
-    let config = roastr.client_ctx.get_config().await;
-    let api_endpoints = config.global.clone().api_endpoints;
-
-    let mut invite_codes = Vec::new();
-    for (peer, peer_url) in api_endpoints {
-        let invite_code = InviteCode::new(peer_url.url, peer, federation_id, None);
-        invite_codes.push(invite_code.to_string());
-    }
-
-    let federation_name = config.global.federation_name();
-
-    let module_list: Vec<String> = config
-        .modules
-        .iter()
-        .map(|(_id, ClientModuleConfig { kind, .. })| kind.to_string())
-        .collect();
-    roastr
-        .create_federation_announcement(
-            federation_name,
-            None,
-            description,
-            federation_id,
-            network,
-            module_list,
-            invite_codes,
-        )
-        .await
-}
-
-#[derive(Debug, Clone)]
-pub struct RoastrClientInit;
-
-impl fedimint_core::module::ModuleInit for RoastrClientInit {
-    type Common = RoastrCommonInit;
+impl ModuleInit for LightningClientInit {
+    type Common = LightningCommonInit;
 
     async fn dump_database(
         &self,
         _dbtx: &mut DatabaseTransaction<'_>,
         _prefix_names: Vec<String>,
     ) -> Box<dyn Iterator<Item = (String, Box<dyn erased_serde::Serialize + Send>)> + '_> {
-        Box::new([].into_iter())
+        Box::new(BTreeMap::new().into_iter())
     }
 }
 
 #[apply(async_trait_maybe_send!)]
-impl ClientModuleInit for RoastrClientInit {
-    type Module = RoastrClientModule;
+impl ClientModuleInit for LightningClientInit {
+    type Module = LightningClientModule;
 
     fn supported_api_versions(&self) -> MultiApiVersion {
         MultiApiVersion::try_from_iter([ApiVersion { major: 0, minor: 0 }])
@@ -490,47 +127,583 @@ impl ClientModuleInit for RoastrClientInit {
     }
 
     async fn init(&self, args: &ClientModuleInitArgs<Self>) -> anyhow::Result<Self::Module> {
-        let frost_key = args.cfg().frost_key.clone();
-        let keys = Keys::parse(&frost_key.public_key().to_hex())
-            .expect("Could not parse frost public key");
-        let nostr_client = Client::builder().signer(keys).build();
-        nostr_client.add_relay("wss://nostr.zebedee.cloud").await?;
-        nostr_client.add_relay("wss://relay.plebstr.com").await?;
-        nostr_client.add_relay("wss://relay.nostr.band").await?;
-        nostr_client.add_relay("wss://relayer.fiatjaf.com").await?;
-        nostr_client
-            .add_relay("wss://nostr-01.bolt.observer")
-            .await?;
-        nostr_client
-            .add_relay("wss://nostr.bitcoiner.social")
-            .await?;
-        nostr_client
-            .add_relay("wss://nostr-relay.wlvs.space")
-            .await?;
-        nostr_client.add_relay("wss://relay.nostr.info").await?;
-        nostr_client
-            .add_relay("wss://nostr-pub.wellorder.net")
-            .await?;
-        nostr_client
-            .add_relay("wss://nostr1.tunnelsats.com")
-            .await?;
-        nostr_client.add_relay("wss://relay.damus.io").await?;
-        Ok(RoastrClientModule {
-            frost_key,
-            module_api: args.module_api().clone(),
-            frost: frost::new_with_synthetic_nonces::<Sha256, rand::rngs::OsRng>(),
-            admin_auth: args.admin_auth().cloned(),
-            nostr_client,
-            federation_id: *args.federation_id(),
-            client_ctx: args.context(),
-        })
+        Ok(LightningClientModule::new(
+            *args.federation_id(),
+            args.cfg().clone(),
+            args.notifier().clone(),
+            args.context(),
+            args.module_api().clone(),
+            args.module_root_secret()
+                .clone()
+                .to_secp_key(fedimint_core::secp256k1::SECP256K1),
+            self.gateway_conn.clone(),
+            args.admin_auth().cloned(),
+            args.task_group(),
+        ))
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Decodable, Encodable, Hash)]
-pub enum RoastrClientStateMachine {}
+#[derive(Debug, Clone)]
+pub struct LightningClientContext {
+    federation_id: FederationId,
+    gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
+}
 
-impl IntoDynInstance for RoastrClientStateMachine {
+impl Context for LightningClientContext {
+    const KIND: Option<ModuleKind> = Some(KIND);
+}
+
+#[derive(Debug)]
+pub struct LightningClientModule {
+    federation_id: FederationId,
+    cfg: LightningClientConfig,
+    notifier: ModuleNotifier<LightningClientStateMachines>,
+    client_ctx: ClientContext<Self>,
+    module_api: DynModuleApi,
+    keypair: Keypair,
+    gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
+    #[allow(unused)] // The field is only used by the cli feature
+    admin_auth: Option<ApiAuth>,
+}
+
+#[apply(async_trait_maybe_send!)]
+impl ClientModule for LightningClientModule {
+    type Init = LightningClientInit;
+    type Common = LightningModuleTypes;
+    type Backup = NoModuleBackup;
+    type ModuleStateMachineContext = LightningClientContext;
+    type States = LightningClientStateMachines;
+
+    fn context(&self) -> Self::ModuleStateMachineContext {
+        LightningClientContext {
+            federation_id: self.federation_id,
+            gateway_conn: self.gateway_conn.clone(),
+        }
+    }
+
+    fn input_fee(
+        &self,
+        amount: Amount,
+        _input: &<Self::Common as ModuleCommon>::Input,
+    ) -> Option<Amount> {
+        Some(self.cfg.fee_consensus.fee(amount))
+    }
+
+    fn output_fee(
+        &self,
+        amount: Amount,
+        _output: &<Self::Common as ModuleCommon>::Output,
+    ) -> Option<Amount> {
+        Some(self.cfg.fee_consensus.fee(amount))
+    }
+
+    #[cfg(feature = "cli")]
+    async fn handle_cli_command(
+        &self,
+        args: &[std::ffi::OsString],
+    ) -> anyhow::Result<serde_json::Value> {
+        cli::handle_cli_command(self, args).await
+    }
+}
+
+fn generate_ephemeral_tweak(static_pk: PublicKey) -> ([u8; 32], PublicKey) {
+    let keypair = Keypair::new(secp256k1::SECP256K1, &mut rand::thread_rng());
+
+    let tweak = ecdh::SharedSecret::new(&static_pk, &keypair.secret_key());
+
+    (tweak.secret_bytes(), keypair.public_key())
+}
+
+impl LightningClientModule {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        federation_id: FederationId,
+        cfg: LightningClientConfig,
+        notifier: ModuleNotifier<LightningClientStateMachines>,
+        client_ctx: ClientContext<Self>,
+        module_api: DynModuleApi,
+        keypair: Keypair,
+        gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
+        admin_auth: Option<ApiAuth>,
+        task_group: &TaskGroup,
+    ) -> Self {
+        Self::spawn_gateway_map_update_task(
+            federation_id,
+            client_ctx.clone(),
+            module_api.clone(),
+            gateway_conn.clone(),
+            task_group,
+        );
+
+        Self {
+            federation_id,
+            cfg,
+            notifier,
+            client_ctx,
+            module_api,
+            keypair,
+            gateway_conn,
+            admin_auth,
+        }
+    }
+
+    fn spawn_gateway_map_update_task(
+        federation_id: FederationId,
+        client_ctx: ClientContext<Self>,
+        module_api: DynModuleApi,
+        gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
+        task_group: &TaskGroup,
+    ) {
+        task_group.spawn("gateway_map_update_task", move |handle| async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+            let mut shutdown_rx = handle.make_shutdown_rx();
+
+            loop {
+                tokio::select! {
+                    _  = &mut Box::pin(interval.tick()) => {
+                        Self::update_gateway_map(
+                            &federation_id,
+                            &client_ctx,
+                            &module_api,
+                            &gateway_conn
+                        ).await;
+                    },
+                    () = &mut shutdown_rx => { break },
+                };
+            }
+        });
+    }
+
+    async fn update_gateway_map(
+        federation_id: &FederationId,
+        client_ctx: &ClientContext<Self>,
+        module_api: &DynModuleApi,
+        gateway_conn: &Arc<dyn GatewayConnection + Send + Sync>,
+    ) {
+        // Update the mapping from lightning node public keys to gateway api
+        // endpoints maintained in the module database. When paying an invoice this
+        // enables the client to select the gateway that has created the invoice,
+        // if possible, such that the payment does not go over lightning, reducing
+        // fees and latency.
+
+        if let Ok(gateways) = module_api.gateways().await {
+            let mut dbtx = client_ctx.module_db().begin_transaction().await;
+
+            for gateway in gateways {
+                if let Ok(Some(routing_info)) = gateway_conn
+                    .routing_info(gateway.clone(), federation_id)
+                    .await
+                {
+                    dbtx.insert_entry(&GatewayKey(routing_info.lightning_public_key), &gateway)
+                        .await;
+                }
+            }
+
+            if let Err(e) = dbtx.commit_tx_result().await {
+                warn!("Failed to commit the updated gateway mapping to the database: {e}");
+            }
+        }
+    }
+
+    async fn select_gateway(
+        &self,
+        invoice: Option<Bolt11Invoice>,
+    ) -> Result<(SafeUrl, RoutingInfo), SelectGatewayError> {
+        let gateways = self
+            .module_api
+            .gateways()
+            .await
+            .map_err(|e| SelectGatewayError::FederationError(e.to_string()))?;
+
+        if gateways.is_empty() {
+            return Err(SelectGatewayError::NoVettedGateways);
+        }
+
+        if let Some(invoice) = invoice {
+            if let Some(gateway) = self
+                .client_ctx
+                .module_db()
+                .begin_transaction_nc()
+                .await
+                .get_value(&GatewayKey(invoice.recover_payee_pub_key()))
+                .await
+                .filter(|gateway| gateways.contains(gateway))
+            {
+                if let Ok(Some(routing_info)) = self.routing_info(&gateway).await {
+                    return Ok((gateway, routing_info));
+                }
+            }
+        }
+
+        for gateway in gateways {
+            if let Ok(Some(routing_info)) = self.routing_info(&gateway).await {
+                return Ok((gateway, routing_info));
+            }
+        }
+
+        Err(SelectGatewayError::FailedToFetchRoutingInfo)
+    }
+
+    async fn routing_info(
+        &self,
+        gateway: &SafeUrl,
+    ) -> Result<Option<RoutingInfo>, GatewayConnectionError> {
+        self.gateway_conn
+            .routing_info(gateway.clone(), &self.federation_id)
+            .await
+    }
+
+    /// Request an invoice. For testing you can optionally specify a gateway to
+    /// generate the invoice, otherwise a random online gateway will be selected
+    /// automatically.
+    ///
+    /// The total fee for this payment may depend on the chosen gateway but
+    /// will be limited to half of one percent plus fifty satoshis. Since the
+    /// selected gateway has been vetted by at least one guardian we trust it to
+    /// set a reasonable fee and only enforce a rather high limit.
+    ///
+    /// The absolute fee for a payment can be calculated from the operation meta
+    /// to be shown to the user in the transaction history.
+    pub async fn remote_receive(
+        &self,
+        recipient_static_pk: PublicKey,
+        amount: Amount,
+        expiry_secs: u32,
+        description: Bolt11InvoiceDescription,
+        gateway: Option<SafeUrl>,
+        custom_meta: Value,
+    ) -> Result<(Bolt11Invoice, OperationId), ReceiveError> {
+        let (contract, invoice) = self
+            .create_contract_and_fetch_invoice(
+                recipient_static_pk,
+                amount,
+                expiry_secs,
+                description,
+                gateway,
+            )
+            .await?;
+
+        let operation_id = self
+            .receive_incoming_contract(contract, invoice.clone(), custom_meta)
+            .await
+            .expect("The contract has been generated with our public key");
+
+        Ok((invoice, operation_id))
+    }
+
+    /// Create an incoming contract locked to a public key derived from the
+    /// recipient's static module public key and fetches the corresponding
+    /// invoice.
+    async fn create_contract_and_fetch_invoice(
+        &self,
+        recipient_static_pk: PublicKey,
+        amount: Amount,
+        expiry_secs: u32,
+        description: Bolt11InvoiceDescription,
+        gateway: Option<SafeUrl>,
+    ) -> Result<(IncomingContract, Bolt11Invoice), ReceiveError> {
+        let (ephemeral_tweak, ephemeral_pk) = generate_ephemeral_tweak(recipient_static_pk);
+
+        let encryption_seed = ephemeral_tweak
+            .consensus_hash::<sha256::Hash>()
+            .to_byte_array();
+
+        let preimage = encryption_seed
+            .consensus_hash::<sha256::Hash>()
+            .to_byte_array();
+
+        let (gateway, routing_info) = match gateway {
+            Some(gateway) => (
+                gateway.clone(),
+                self.routing_info(&gateway)
+                    .await
+                    .map_err(ReceiveError::GatewayConnectionError)?
+                    .ok_or(ReceiveError::UnknownFederation)?,
+            ),
+            None => self
+                .select_gateway(None)
+                .await
+                .map_err(ReceiveError::FailedToSelectGateway)?,
+        };
+
+        if !routing_info.receive_fee.le(&PaymentFee::RECEIVE_FEE_LIMIT) {
+            return Err(ReceiveError::PaymentFeeExceedsLimit);
+        }
+
+        let contract_amount = routing_info.receive_fee.subtract_from(amount.msats);
+
+        // The dust limit ensures that the incoming contract can be claimed without
+        // additional funds as the contracts amount is sufficient to cover the fees
+        if contract_amount < Amount::from_sats(50) {
+            return Err(ReceiveError::DustAmount);
+        }
+
+        let expiration = duration_since_epoch()
+            .as_secs()
+            .saturating_add(u64::from(expiry_secs));
+
+        let claim_pk = recipient_static_pk
+            .mul_tweak(
+                secp256k1::SECP256K1,
+                &Scalar::from_be_bytes(ephemeral_tweak).expect("Within curve order"),
+            )
+            .expect("Tweak is valid");
+
+        let contract = IncomingContract::new(
+            self.cfg.tpe_agg_pk,
+            encryption_seed,
+            preimage,
+            PaymentImage::Hash(preimage.consensus_hash()),
+            contract_amount,
+            expiration,
+            claim_pk,
+            routing_info.module_public_key,
+            ephemeral_pk,
+        );
+
+        let invoice = self
+            .gateway_conn
+            .bolt11_invoice(
+                gateway,
+                self.federation_id,
+                contract.clone(),
+                amount,
+                description,
+                expiry_secs,
+            )
+            .await
+            .map_err(ReceiveError::GatewayConnectionError)?;
+
+        if invoice.payment_hash() != &preimage.consensus_hash() {
+            return Err(ReceiveError::InvalidInvoicePaymentHash);
+        }
+
+        if invoice.amount_milli_satoshis() != Some(amount.msats) {
+            return Err(ReceiveError::InvalidInvoiceAmount);
+        }
+
+        Ok((contract, invoice))
+    }
+
+    /// Start a remote receive state machine that
+    /// waits for an incoming contract to be funded.
+    async fn receive_incoming_contract(
+        &self,
+        contract: IncomingContract,
+        invoice: Bolt11Invoice,
+        custom_meta: Value,
+    ) -> Option<OperationId> {
+        let operation_id = OperationId::from_encodable(&contract.clone());
+
+        let receive_sm = LightningClientStateMachines::RemoteReceive(RemoteReceiveStateMachine {
+            common: RemoteReceiveSMCommon {
+                operation_id,
+                contract: contract.clone(),
+            },
+            state: RemoteReceiveSMState::Pending,
+        });
+
+        // this may only fail if the operation id is already in use, in which case we
+        // ignore the error such that the method is idempotent
+        self.client_ctx
+            .manual_operation_start(
+                operation_id,
+                LightningCommonInit::KIND.as_str(),
+                OperationMeta {
+                    contract,
+                    invoice: LightningInvoice::Bolt11(invoice),
+                    custom_meta,
+                },
+                vec![self.client_ctx.make_dyn_state(receive_sm)],
+            )
+            .await
+            .ok();
+
+        Some(operation_id)
+    }
+
+    pub async fn claim_contract(
+        &self,
+        contract: IncomingContract,
+        invoice: Bolt11Invoice,
+        custom_meta: Value,
+    ) -> Option<OperationId> {
+        let operation_id = OperationId::from_encodable(&contract.clone());
+
+        let (claim_keypair, agg_decryption_key) = self.recover_contract_keys(&contract)?;
+
+        let claim_sm = LightningClientStateMachines::Claim(ClaimStateMachine {
+            common: ClaimSMCommon {
+                operation_id,
+                contract: contract.clone(),
+                claim_keypair,
+                agg_decryption_key,
+            },
+            state: ClaimSMState::Pending,
+        });
+
+        // this may only fail if the operation id is already in use, in which case we
+        // ignore the error such that the method is idempotent
+        self.client_ctx
+            .manual_operation_start(
+                operation_id,
+                LightningCommonInit::KIND.as_str(),
+                OperationMeta {
+                    contract,
+                    invoice: LightningInvoice::Bolt11(invoice),
+                    custom_meta,
+                },
+                vec![self.client_ctx.make_dyn_state(claim_sm)],
+            )
+            .await
+            .ok();
+
+        Some(operation_id)
+    }
+
+    fn recover_contract_keys(
+        &self,
+        contract: &IncomingContract,
+    ) -> Option<(Keypair, AggregateDecryptionKey)> {
+        let ephemeral_tweak = ecdh::SharedSecret::new(
+            &contract.commitment.ephemeral_pk,
+            &self.keypair.secret_key(),
+        )
+        .secret_bytes();
+
+        let encryption_seed = ephemeral_tweak
+            .consensus_hash::<sha256::Hash>()
+            .to_byte_array();
+
+        let claim_keypair = self
+            .keypair
+            .secret_key()
+            .mul_tweak(&Scalar::from_be_bytes(ephemeral_tweak).expect("Within curve order"))
+            .expect("Tweak is valid")
+            .keypair(secp256k1::SECP256K1);
+
+        if claim_keypair.public_key() != contract.commitment.claim_pk {
+            return None; // The claim key is not derived from our pk
+        }
+
+        let agg_decryption_key = derive_agg_decryption_key(&self.cfg.tpe_agg_pk, &encryption_seed);
+
+        if !contract.verify_agg_decryption_key(&self.cfg.tpe_agg_pk, &agg_decryption_key) {
+            return None; // The decryption key is not derived from our pk
+        }
+
+        contract.decrypt_preimage(&agg_decryption_key)?;
+
+        Some((claim_keypair, agg_decryption_key))
+    }
+
+    /// Await the final state of the remote receive operation.
+    pub async fn await_final_remote_receive_operation_state(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<FinalRemoteReceiveOperationState> {
+        let operation = self.client_ctx.get_operation(operation_id).await?;
+        let mut stream = self.notifier.subscribe(operation_id).await;
+
+        // TODO: Do we need to use `outcome_or_updates` here?
+        // I'm using it here because the LNv2 client does.
+        Ok(self.client_ctx.outcome_or_updates(&operation, operation_id, || {
+            stream! {
+                loop {
+                    if let Some(LightningClientStateMachines::RemoteReceive(state)) = stream.next().await {
+                        match state.state {
+                            RemoteReceiveSMState::Pending => continue,
+                            RemoteReceiveSMState::Funded => {
+                                yield FinalRemoteReceiveOperationState::Funded;
+                                return;
+                            },
+                            RemoteReceiveSMState::Expired => {
+                                yield FinalRemoteReceiveOperationState::Expired;
+                                return;
+                            },
+                        }
+                    }
+                }
+            }
+        }).into_stream().next().await.expect("Stream contains one final state"))
+    }
+
+    /// Await the final state of the claim operation.
+    pub async fn await_final_claim_operation_state(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<FinalClaimOperationState> {
+        let operation = self.client_ctx.get_operation(operation_id).await?;
+        let mut stream = self.notifier.subscribe(operation_id).await;
+        let client_ctx = self.client_ctx.clone();
+
+        // TODO: Do we need to use `outcome_or_updates` here?
+        // I'm using it here because the LNv2 client does.
+        Ok(self.client_ctx.outcome_or_updates(&operation, operation_id, || {
+            stream! {
+                loop {
+                    if let Some(LightningClientStateMachines::Claim(state)) = stream.next().await {
+                        match state.state {
+                            ClaimSMState::Pending => continue,
+                            ClaimSMState::Claiming(out_points) => {
+                                if client_ctx.await_primary_module_outputs(operation_id, out_points).await.is_ok() {
+                                    yield FinalClaimOperationState::Claimed;
+                                } else {
+                                    yield FinalClaimOperationState::Failure;
+                                }
+                                return;
+                            },
+                            ClaimSMState::Expired => {
+                                yield FinalClaimOperationState::Expired;
+                                return;
+                            },
+                            ClaimSMState::UnknownKey => {
+                                yield FinalClaimOperationState::UnknownKey;
+                                return;
+                            },
+                        }
+                    }
+                }
+            }
+        }).into_stream().next().await.expect("Stream contains one final state"))
+    }
+}
+
+#[derive(Error, Debug, Clone, Eq, PartialEq)]
+pub enum SelectGatewayError {
+    #[error("Federation returned an error: {0}")]
+    FederationError(String),
+    #[error("The federation has no vetted gateways")]
+    NoVettedGateways,
+    #[error("All vetted gateways failed to respond on request of the routing info")]
+    FailedToFetchRoutingInfo,
+}
+
+#[derive(Error, Debug, Clone, Eq, PartialEq)]
+pub enum ReceiveError {
+    #[error("Failed to select gateway: {0}")]
+    FailedToSelectGateway(SelectGatewayError),
+    #[error("Gateway connection error: {0}")]
+    GatewayConnectionError(GatewayConnectionError),
+    #[error("The gateway does not support our federation")]
+    UnknownFederation,
+    #[error("The gateways fee exceeds the limit")]
+    PaymentFeeExceedsLimit,
+    #[error("The total fees required to complete this payment exceed its amount")]
+    DustAmount,
+    #[error("The invoice's payment hash is incorrect")]
+    InvalidInvoicePaymentHash,
+    #[error("The invoice's amount is incorrect")]
+    InvalidInvoiceAmount,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Decodable, Encodable)]
+pub enum LightningClientStateMachines {
+    Claim(ClaimStateMachine),
+    RemoteReceive(RemoteReceiveStateMachine),
+}
+
+impl IntoDynInstance for LightningClientStateMachines {
     type DynType = DynState;
 
     fn into_dyn(self, instance_id: ModuleInstanceId) -> Self::DynType {
@@ -538,63 +711,34 @@ impl IntoDynInstance for RoastrClientStateMachine {
     }
 }
 
-impl State for RoastrClientStateMachine {
-    type ModuleContext = RoastrClientContext;
+impl State for LightningClientStateMachines {
+    type ModuleContext = LightningClientContext;
 
     fn transitions(
         &self,
-        _context: &Self::ModuleContext,
-        _global_context: &DynGlobalClientContext,
-    ) -> Vec<fedimint_client::sm::StateTransition<Self>> {
-        vec![]
-    }
-
-    fn operation_id(&self) -> fedimint_core::core::OperationId {
-        OperationId::new_random()
-    }
-}
-
-/// Query strategy that returns when enough peers responded or a deadline passed
-pub struct ThresholdOrDeadline<R> {
-    deadline: SystemTime,
-    threshold: usize,
-    responses: BTreeMap<PeerId, R>,
-}
-
-impl<R> ThresholdOrDeadline<R> {
-    pub fn new(threshold: usize, deadline: SystemTime) -> Self {
-        Self {
-            deadline,
-            threshold,
-            responses: BTreeMap::default(),
+        context: &Self::ModuleContext,
+        global_context: &DynGlobalClientContext,
+    ) -> Vec<StateTransition<Self>> {
+        match self {
+            LightningClientStateMachines::Claim(state) => {
+                sm_enum_variant_translation!(
+                    state.transitions(context, global_context),
+                    LightningClientStateMachines::Claim
+                )
+            }
+            LightningClientStateMachines::RemoteReceive(state) => {
+                sm_enum_variant_translation!(
+                    state.transitions(context, global_context),
+                    LightningClientStateMachines::RemoteReceive
+                )
+            }
         }
     }
-}
 
-impl<R> QueryStrategy<R, BTreeMap<PeerId, R>> for ThresholdOrDeadline<R> {
-    fn process(
-        &mut self,
-        peer: PeerId,
-        result: api::PeerResult<R>,
-    ) -> QueryStep<BTreeMap<PeerId, R>> {
-        match result {
-            Ok(response) => {
-                assert!(self.responses.insert(peer, response).is_none());
-
-                if self.threshold <= self.responses.len() || self.deadline <= now() {
-                    QueryStep::Success(mem::take(&mut self.responses))
-                } else {
-                    QueryStep::Continue
-                }
-            }
-            // we rely on retries and timeouts to detect a deadline passing
-            Err(_) => {
-                if self.deadline <= now() {
-                    QueryStep::Success(mem::take(&mut self.responses))
-                } else {
-                    QueryStep::Retry(BTreeSet::from([peer]))
-                }
-            }
+    fn operation_id(&self) -> OperationId {
+        match self {
+            LightningClientStateMachines::Claim(state) => state.operation_id(),
+            LightningClientStateMachines::RemoteReceive(state) => state.operation_id(),
         }
     }
 }

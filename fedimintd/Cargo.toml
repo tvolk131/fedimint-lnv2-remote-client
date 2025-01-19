@@ -13,7 +13,6 @@ path = "src/fedimintd.rs"
 anyhow = { workspace = true }
 fedimintd = { workspace = true }
 tokio = { workspace = true }
-fedimint-lnv2-remote-common = { path = "../fedimint-lnv2-remote-common" }
 rand = { workspace = true }
 schnorr_fun = { workspace = true }
 sha2 = { workspace = true }

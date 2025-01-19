@@ -5,7 +5,7 @@ use fedimint_core::fedimint_build_code_version_env;
 async fn main() -> anyhow::Result<()> {
     FedimintCli::new(fedimint_build_code_version_env!())?
         .with_default_modules()
-        .with_module(roastr_client::RoastrClientInit)
+        .with_module(fedimint_lnv2_remote_client::LightningClientInit::default())
         .run()
         .await;
     Ok(())

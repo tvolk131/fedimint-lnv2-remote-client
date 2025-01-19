@@ -15,7 +15,6 @@ path = "bin/tests.rs"
 anyhow = { workspace = true }
 devimint = { workspace = true }
 fedimint-core = { workspace = true }
-fedimint-lnv2-remote-common = { path = "../fedimint-lnv2-remote-common" }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
