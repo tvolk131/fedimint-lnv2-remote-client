@@ -27,11 +27,12 @@ use fedimint_client::sm::util::MapStateTransitions;
 use fedimint_client::sm::{Context, DynState, ModuleNotifier, State, StateTransition};
 use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
 use fedimint_core::config::FederationId;
-use fedimint_core::core::{IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
+use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
-    ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleInit, MultiApiVersion,
+    ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion, ModuleInit,
+    MultiApiVersion,
 };
 use fedimint_core::task::TaskGroup;
 use fedimint_core::time::duration_since_epoch;
@@ -43,7 +44,7 @@ use fedimint_lnv2_common::gateway_api::{
     GatewayConnection, GatewayConnectionError, PaymentFee, RealGatewayConnection, RoutingInfo,
 };
 use fedimint_lnv2_common::{
-    Bolt11InvoiceDescription, LightningCommonInit, LightningInvoice, LightningModuleTypes, KIND,
+    Bolt11InvoiceDescription, LightningInvoice, LightningModuleTypes, MODULE_CONSENSUS_VERSION,
 };
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
@@ -59,6 +60,8 @@ use crate::claim_sm::{ClaimSMCommon, ClaimSMState, ClaimStateMachine};
 use crate::remote_receive_sm::{
     RemoteReceiveSMCommon, RemoteReceiveSMState, RemoteReceiveStateMachine,
 };
+
+const KIND: ModuleKind = ModuleKind::from_static_str("lnv2-remote");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationMeta {
@@ -90,23 +93,37 @@ pub enum FinalClaimOperationState {
     Failure,
 }
 
+#[derive(Debug)]
+pub struct LightningRemoteCommonInit;
+
+impl CommonModuleInit for LightningRemoteCommonInit {
+    const CONSENSUS_VERSION: ModuleConsensusVersion = MODULE_CONSENSUS_VERSION;
+    const KIND: ModuleKind = KIND;
+
+    type ClientConfig = LightningClientConfig;
+
+    fn decoder() -> Decoder {
+        LightningModuleTypes::decoder()
+    }
+}
+
 pub type ReceiveResult = Result<(Bolt11Invoice, OperationId), ReceiveError>;
 
 #[derive(Debug, Clone)]
-pub struct LightningClientInit {
+pub struct LightningRemoteClientInit {
     pub gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
 }
 
-impl Default for LightningClientInit {
+impl Default for LightningRemoteClientInit {
     fn default() -> Self {
-        LightningClientInit {
+        LightningRemoteClientInit {
             gateway_conn: Arc::new(RealGatewayConnection),
         }
     }
 }
 
-impl ModuleInit for LightningClientInit {
-    type Common = LightningCommonInit;
+impl ModuleInit for LightningRemoteClientInit {
+    type Common = LightningRemoteCommonInit;
 
     async fn dump_database(
         &self,
@@ -118,7 +135,7 @@ impl ModuleInit for LightningClientInit {
 }
 
 #[apply(async_trait_maybe_send!)]
-impl ClientModuleInit for LightningClientInit {
+impl ClientModuleInit for LightningRemoteClientInit {
     type Module = LightningClientModule;
 
     fn supported_api_versions(&self) -> MultiApiVersion {
@@ -168,7 +185,7 @@ pub struct LightningClientModule {
 
 #[apply(async_trait_maybe_send!)]
 impl ClientModule for LightningClientModule {
-    type Init = LightningClientInit;
+    type Init = LightningRemoteClientInit;
     type Common = LightningModuleTypes;
     type Backup = NoModuleBackup;
     type ModuleStateMachineContext = LightningClientContext;
@@ -508,7 +525,7 @@ impl LightningClientModule {
         self.client_ctx
             .manual_operation_start(
                 operation_id,
-                LightningCommonInit::KIND.as_str(),
+                LightningRemoteCommonInit::KIND.as_str(),
                 OperationMeta {
                     contract,
                     invoice: LightningInvoice::Bolt11(invoice),
@@ -547,7 +564,7 @@ impl LightningClientModule {
         self.client_ctx
             .manual_operation_start(
                 operation_id,
-                LightningCommonInit::KIND.as_str(),
+                LightningRemoteCommonInit::KIND.as_str(),
                 OperationMeta {
                     contract,
                     invoice: LightningInvoice::Bolt11(invoice),

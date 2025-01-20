@@ -11,7 +11,7 @@ async fn main() -> anyhow::Result<()> {
 
         // TODO: Actually test stuff here.
 
-        info!("Successfully completed redimint-lnv2-remote test");
+        info!("Successfully completed fedimint-lnv2-remote test");
         Ok(())
     })
     .await
