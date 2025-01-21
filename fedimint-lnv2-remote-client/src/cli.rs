@@ -13,6 +13,7 @@ use crate::{Bolt11InvoiceDescription, LightningClientModule};
 
 #[derive(Parser, Serialize)]
 enum Opts {
+    GetPublicKey,
     /// Request an invoice. For testing you can optionally specify a gateway to
     /// generate the invoice, otherwise a gateway will be selected
     /// automatically.
@@ -23,7 +24,11 @@ enum Opts {
         gateway: Option<SafeUrl>,
     },
     /// Await the final state of the receive operation.
-    AwaitRemoteReceive { operation_id: OperationId },
+    AwaitRemoteReceive {
+        operation_id: OperationId,
+    },
+    /// Claim a payment.
+    Claim {},
     /// Gateway subcommands
     #[command(subcommand)]
     Gateways(GatewaysOpts),
@@ -49,6 +54,7 @@ pub(crate) async fn handle_cli_command(
     let opts = Opts::parse_from(iter::once(&ffi::OsString::from("lnv2-remote")).chain(args.iter()));
 
     let value = match opts {
+        Opts::GetPublicKey => json(lightning.get_public_key()),
         Opts::RemoteReceive {
             recipient_static_pk,
             amount,
@@ -70,6 +76,7 @@ pub(crate) async fn handle_cli_command(
                 .await_final_remote_receive_operation_state(operation_id)
                 .await?,
         ),
+        Opts::Claim {} => unimplemented!(),
         Opts::Gateways(gateway_opts) => match gateway_opts {
             #[allow(clippy::unit_arg)]
             GatewaysOpts::Map => json(

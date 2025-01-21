@@ -6297,6 +6297,9 @@ dependencies = [
  "fedimint-cli",
  "fedimint-core",
  "fedimint-lnv2-remote-client",
+ "fedimint-meta-client",
+ "fedimint-mint-client",
+ "fedimint-wallet-client",
  "tokio",
 ]
 

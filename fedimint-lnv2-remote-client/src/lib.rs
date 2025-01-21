@@ -61,7 +61,7 @@ use crate::remote_receive_sm::{
     RemoteReceiveSMCommon, RemoteReceiveSMState, RemoteReceiveStateMachine,
 };
 
-const KIND: ModuleKind = ModuleKind::from_static_str("lnv2-remote");
+const KIND: ModuleKind = ModuleKind::from_static_str("lnv2");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationMeta {
@@ -368,6 +368,10 @@ impl LightningClientModule {
         self.gateway_conn
             .routing_info(gateway.clone(), &self.federation_id)
             .await
+    }
+
+    pub fn get_public_key(&self) -> PublicKey {
+        self.keypair.public_key()
     }
 
     /// Request an invoice. For testing you can optionally specify a gateway to
