@@ -42,7 +42,7 @@ use fedimint_lnv2_common::gateway_api::{
     GatewayConnection, GatewayConnectionError, PaymentFee, RealGatewayConnection, RoutingInfo,
 };
 use fedimint_lnv2_common::{
-    Bolt11InvoiceDescription, LightningModuleTypes, MODULE_CONSENSUS_VERSION,
+    Bolt11InvoiceDescription, ContractId, LightningModuleTypes, MODULE_CONSENSUS_VERSION,
 };
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
@@ -349,6 +349,31 @@ impl LightningClientModule {
             .into_iter()
             .filter_map(|c| if c.is_funded { Some(c.contract) } else { None })
             .collect()
+    }
+
+    pub async fn remove_claimable_contracts(
+        &self,
+        claimer_iroh_pubkey: iroh::PublicKey,
+        contract_ids: Vec<ContractId>,
+    ) -> anyhow::Result<()> {
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        let Some(mut contract_notifications) = dbtx
+            .get_value(&RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes()))
+            .await
+        else {
+            return Ok(());
+        };
+
+        contract_notifications.retain(|c| !contract_ids.contains(&c.contract.contract_id()));
+
+        dbtx.insert_entry(
+            &RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes()),
+            &contract_notifications,
+        )
+        .await;
+
+        dbtx.commit_tx_result().await
     }
 
     /// Request an invoice. For testing you can optionally specify a gateway to
