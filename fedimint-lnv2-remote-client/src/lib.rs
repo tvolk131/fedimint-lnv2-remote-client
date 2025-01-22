@@ -44,13 +44,12 @@ use fedimint_lnv2_common::gateway_api::{
     GatewayConnection, GatewayConnectionError, PaymentFee, RealGatewayConnection, RoutingInfo,
 };
 use fedimint_lnv2_common::{
-    Bolt11InvoiceDescription, LightningInvoice, LightningModuleTypes, MODULE_CONSENSUS_VERSION,
+    Bolt11InvoiceDescription, LightningModuleTypes, MODULE_CONSENSUS_VERSION,
 };
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
 use secp256k1::{ecdh, Keypair, PublicKey, Scalar};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use thiserror::Error;
 use tpe::{derive_agg_decryption_key, AggregateDecryptionKey};
 use tracing::warn;
@@ -66,8 +65,6 @@ const KIND: ModuleKind = ModuleKind::from_static_str("lnv2");
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationMeta {
     pub contract: IncomingContract,
-    pub invoice: LightningInvoice,
-    pub custom_meta: Value,
 }
 
 /// The final state of an operation receiving a payment over lightning.
@@ -86,9 +83,6 @@ pub enum FinalClaimOperationState {
     Claimed,
     /// The payment request expired before it was funded.
     Expired,
-    /// The remote receiver provided a contract that's locked to someone else's
-    /// public key.
-    UnknownKey,
     /// Either a programming error has occurred or the federation is malicious.
     Failure,
 }
@@ -392,9 +386,8 @@ impl LightningClientModule {
         expiry_secs: u32,
         description: Bolt11InvoiceDescription,
         gateway: Option<SafeUrl>,
-        custom_meta: Value,
-    ) -> Result<(Bolt11Invoice, OperationId), ReceiveError> {
-        let (contract, invoice) = self
+    ) -> Result<(Bolt11Invoice, IncomingContract, OperationId), ReceiveError> {
+        let (invoice, contract) = self
             .create_contract_and_fetch_invoice(
                 recipient_static_pk,
                 amount,
@@ -405,16 +398,14 @@ impl LightningClientModule {
             .await?;
 
         let operation_id = self
-            .receive_incoming_contract(contract, invoice.clone(), custom_meta)
-            .await
-            .expect("The contract has been generated with our public key");
+            .start_remote_receive_state_machine(contract.clone())
+            .await;
 
-        Ok((invoice, operation_id))
+        Ok((invoice, contract, operation_id))
     }
 
-    /// Create an incoming contract locked to a public key derived from the
-    /// recipient's static module public key and fetches the corresponding
-    /// invoice.
+    /// Create an incoming contract locked to a specified public key and fetch
+    /// the corresponding invoice.
     async fn create_contract_and_fetch_invoice(
         &self,
         recipient_static_pk: PublicKey,
@@ -422,7 +413,7 @@ impl LightningClientModule {
         expiry_secs: u32,
         description: Bolt11InvoiceDescription,
         gateway: Option<SafeUrl>,
-    ) -> Result<(IncomingContract, Bolt11Invoice), ReceiveError> {
+    ) -> Result<(Bolt11Invoice, IncomingContract), ReceiveError> {
         let (ephemeral_tweak, ephemeral_pk) = generate_ephemeral_tweak(recipient_static_pk);
 
         let encryption_seed = ephemeral_tweak
@@ -503,17 +494,12 @@ impl LightningClientModule {
             return Err(ReceiveError::InvalidInvoiceAmount);
         }
 
-        Ok((contract, invoice))
+        Ok((invoice, contract))
     }
 
     /// Start a remote receive state machine that
     /// waits for an incoming contract to be funded.
-    async fn receive_incoming_contract(
-        &self,
-        contract: IncomingContract,
-        invoice: Bolt11Invoice,
-        custom_meta: Value,
-    ) -> Option<OperationId> {
+    async fn start_remote_receive_state_machine(&self, contract: IncomingContract) -> OperationId {
         let operation_id = OperationId::from_encodable(&contract.clone());
 
         let receive_sm = LightningClientStateMachines::RemoteReceive(RemoteReceiveStateMachine {
@@ -530,25 +516,16 @@ impl LightningClientModule {
             .manual_operation_start(
                 operation_id,
                 LightningRemoteCommonInit::KIND.as_str(),
-                OperationMeta {
-                    contract,
-                    invoice: LightningInvoice::Bolt11(invoice),
-                    custom_meta,
-                },
+                OperationMeta { contract },
                 vec![self.client_ctx.make_dyn_state(receive_sm)],
             )
             .await
             .ok();
 
-        Some(operation_id)
+        operation_id
     }
 
-    pub async fn claim_contract(
-        &self,
-        contract: IncomingContract,
-        invoice: Bolt11Invoice,
-        custom_meta: Value,
-    ) -> Option<OperationId> {
+    pub async fn claim_contract(&self, contract: IncomingContract) -> Option<OperationId> {
         let operation_id = OperationId::from_encodable(&contract.clone());
 
         let (claim_keypair, agg_decryption_key) = self.recover_contract_keys(&contract)?;
@@ -569,11 +546,7 @@ impl LightningClientModule {
             .manual_operation_start(
                 operation_id,
                 LightningRemoteCommonInit::KIND.as_str(),
-                OperationMeta {
-                    contract,
-                    invoice: LightningInvoice::Bolt11(invoice),
-                    custom_meta,
-                },
+                OperationMeta { contract },
                 vec![self.client_ctx.make_dyn_state(claim_sm)],
             )
             .await
@@ -676,10 +649,6 @@ impl LightningClientModule {
                             },
                             ClaimSMState::Expired => {
                                 yield FinalClaimOperationState::Expired;
-                                return;
-                            },
-                            ClaimSMState::UnknownKey => {
-                                yield FinalClaimOperationState::UnknownKey;
                                 return;
                             },
                         }

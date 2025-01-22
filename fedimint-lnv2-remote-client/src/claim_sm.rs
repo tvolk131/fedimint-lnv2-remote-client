@@ -47,10 +47,6 @@ pub enum ClaimSMState {
     /// The contract is expired and cannot be claimed.
     /// This will only happen if the remote receiver is buggy or malicious.
     Expired,
-
-    /// The remote receiver provided a contract that we don't have a key for.
-    /// This will only happen if the remote receiver is buggy or malicious.
-    UnknownKey,
 }
 
 #[cfg_attr(doc, aquamarine::aquamarine)]
@@ -63,7 +59,6 @@ pub enum ClaimSMState {
 ///
 ///     Pending -- contract is claimed --> Claimed
 ///     Pending -- contract is expired --> Expired
-///     Pending -- remote receiver provided contract we don't have a key for --> UnknownKey
 /// ```
 impl State for ClaimStateMachine {
     type ModuleContext = LightningClientContext;
@@ -89,7 +84,7 @@ impl State for ClaimStateMachine {
                     },
                 )]
             }
-            ClaimSMState::Claiming(..) | ClaimSMState::Expired | ClaimSMState::UnknownKey => {
+            ClaimSMState::Claiming(..) | ClaimSMState::Expired => {
                 vec![]
             }
         }
@@ -106,6 +101,8 @@ impl ClaimStateMachine {
         contract: IncomingContract,
         global_context: DynGlobalClientContext,
     ) -> bool {
+        println!("await_incoming_contract");
+
         global_context
             .module_api()
             .await_incoming_contract(&contract.contract_id(), contract.commitment.expiration)
@@ -118,6 +115,8 @@ impl ClaimStateMachine {
         global_context: DynGlobalClientContext,
         contract_confirmed: bool,
     ) -> ClaimStateMachine {
+        println!("transition_incoming_contract");
+
         if !contract_confirmed {
             return old_state.update(ClaimSMState::Expired);
         }

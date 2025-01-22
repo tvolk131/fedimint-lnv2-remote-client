@@ -15,6 +15,10 @@ path = "bin/tests.rs"
 anyhow = { workspace = true }
 devimint = { workspace = true }
 fedimint-core = { workspace = true }
+fedimint-lnv2-common = { workspace = true }
+fedimint-lnv2-remote-client = { path = "../fedimint-lnv2-remote-client" }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true }
+lightning-invoice = { workspace = true }
+substring = "1.4.5"

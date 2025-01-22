@@ -23,12 +23,14 @@ enum Opts {
         #[arg(long)]
         gateway: Option<SafeUrl>,
     },
-    /// Await the final state of the receive operation.
+    /// Await the final state of the remote receive operation.
     AwaitRemoteReceive {
         operation_id: OperationId,
     },
     /// Claim a payment.
-    Claim {},
+    Claim {
+        incoming_contract: String,
+    },
     /// Gateway subcommands
     #[command(subcommand)]
     Gateways(GatewaysOpts),
@@ -67,7 +69,6 @@ pub(crate) async fn handle_cli_command(
                     3600,
                     Bolt11InvoiceDescription::Direct(String::new()),
                     gateway,
-                    Value::Null,
                 )
                 .await?,
         ),
@@ -76,7 +77,10 @@ pub(crate) async fn handle_cli_command(
                 .await_final_remote_receive_operation_state(operation_id)
                 .await?,
         ),
-        Opts::Claim {} => unimplemented!(),
+        Opts::Claim { incoming_contract } => {
+            let incoming_contract = serde_json::from_str(&incoming_contract)?;
+            json(lightning.claim_contract(incoming_contract).await)
+        }
         Opts::Gateways(gateway_opts) => match gateway_opts {
             #[allow(clippy::unit_arg)]
             GatewaysOpts::Map => json(

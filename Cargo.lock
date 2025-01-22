@@ -1677,7 +1677,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68a27f0a2651f507903d67f8fb0688291e3e69f70381cdb5ee9729366f795f80"
 dependencies = [
  "heck 0.5.0",
- "indexmap 1.9.3",
+ "indexmap 2.6.0",
  "itertools 0.13.0",
  "proc-macro-crate 3.2.0",
  "proc-macro2",
@@ -2649,7 +2649,11 @@ dependencies = [
  "anyhow",
  "devimint",
  "fedimint-core",
+ "fedimint-lnv2-common",
+ "fedimint-lnv2-remote-client",
+ "lightning-invoice",
  "serde_json",
+ "substring",
  "tokio",
  "tracing",
 ]
@@ -7083,6 +7087,15 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.95",
+]
+
+[[package]]
+name = "substring"
+version = "1.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42ee6433ecef213b2e72f587ef64a2f5943e7cd16fbd82dbe8bc07486c534c86"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]
