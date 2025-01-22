@@ -41,3 +41,4 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
+iroh = "0.31.0"

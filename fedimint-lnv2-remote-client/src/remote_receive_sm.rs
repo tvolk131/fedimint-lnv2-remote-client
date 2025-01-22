@@ -1,12 +1,15 @@
 use fedimint_client::sm::{ClientSMDatabaseTransaction, State, StateTransition};
 use fedimint_client::DynGlobalClientContext;
 use fedimint_core::core::OperationId;
+use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::encoding::{Decodable, Encodable};
+use fedimint_core::secp256k1::PublicKey;
 use fedimint_lnv2_common::contracts::IncomingContract;
 use fedimint_lnv2_common::ContractId;
 use tracing::instrument;
 
 use crate::api::LightningFederationApi;
+use crate::db::{ClaimerKey, RemoteReceivedContractsKey};
 use crate::LightningClientContext;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Decodable, Encodable)]
@@ -27,6 +30,7 @@ impl RemoteReceiveStateMachine {
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Decodable, Encodable)]
 pub struct RemoteReceiveSMCommon {
     pub operation_id: OperationId,
+    pub claimer_pubkey: PublicKey,
     pub contract: IncomingContract,
 }
 
@@ -59,6 +63,7 @@ impl State for RemoteReceiveStateMachine {
         let gc = global_context.clone();
 
         let contract_id = self.common.contract.contract_id();
+        let claimer_pubkey = self.common.claimer_pubkey;
 
         match &self.state {
             RemoteReceiveSMState::Pending => {
@@ -67,6 +72,7 @@ impl State for RemoteReceiveStateMachine {
                     move |dbtx, contract_confirmed, old_state| {
                         Box::pin(Self::transition_incoming_contract(
                             dbtx,
+                            claimer_pubkey,
                             contract_id,
                             old_state,
                             contract_confirmed,
@@ -99,17 +105,50 @@ impl RemoteReceiveStateMachine {
 
     async fn transition_incoming_contract(
         dbtx: &mut ClientSMDatabaseTransaction<'_, '_>,
+        claimer_pubkey: PublicKey,
         contract_id: ContractId,
         old_state: RemoteReceiveStateMachine,
         contract_confirmed: bool,
     ) -> RemoteReceiveStateMachine {
-        if !contract_confirmed {
-            return old_state.update(RemoteReceiveSMState::Expired);
-        }
+        let final_state = if !contract_confirmed {
+            RemoteReceiveSMState::Expired
+        } else {
+            RemoteReceiveSMState::Funded
+        };
 
-        // TODO: Save `contract_id` to the database so we
-        // can send it to the remote user at a later point.
+        let iroh_pubkey_or = dbtx
+            .module_tx()
+            .get_value(&ClaimerKey(claimer_pubkey))
+            .await;
 
-        old_state.update(RemoteReceiveSMState::Funded)
+        // If the contract is stored, update it.
+        if let Some(iroh_pubkey) = iroh_pubkey_or {
+            let mut unnotified_contracts = dbtx
+                .module_tx()
+                .get_value(&RemoteReceivedContractsKey(iroh_pubkey))
+                .await
+                .expect("Always contains value if claimer key is registered");
+
+            if final_state == RemoteReceiveSMState::Funded {
+                // Mark the contract as funded.
+                for unnotified_contract in &mut unnotified_contracts {
+                    if unnotified_contract.contract.contract_id() == contract_id {
+                        unnotified_contract.is_funded = true;
+                    }
+                }
+            } else {
+                // Remove the contract if it expired.
+                unnotified_contracts.retain(|c| c.contract.contract_id() != contract_id);
+            }
+
+            dbtx.module_tx()
+                .insert_entry(
+                    &RemoteReceivedContractsKey(iroh_pubkey),
+                    &unnotified_contracts,
+                )
+                .await;
+        };
+
+        old_state.update(final_state)
     }
 }

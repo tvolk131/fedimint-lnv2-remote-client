@@ -17,6 +17,7 @@ use std::sync::Arc;
 use async_stream::stream;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1;
+use db::{ClaimerKey, RemoteReceiveContractNotification, RemoteReceivedContractsKey};
 use fedimint_api_client::api::DynModuleApi;
 use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::recovery::NoModuleBackup;
@@ -26,7 +27,7 @@ use fedimint_client::sm::{Context, DynState, ModuleNotifier, State, StateTransit
 use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
-use fedimint_core::db::DatabaseTransaction;
+use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
     ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion, ModuleInit,
@@ -99,7 +100,7 @@ impl CommonModuleInit for LightningRemoteCommonInit {
     }
 }
 
-pub type ReceiveResult = Result<(Bolt11Invoice, OperationId), ReceiveError>;
+pub type RemoteReceiveResult = Result<(Bolt11Invoice, OperationId), RemoteReceiveError>;
 
 #[derive(Debug, Clone)]
 pub struct LightningRemoteClientInit {
@@ -281,6 +282,75 @@ impl LightningClientModule {
         self.keypair.public_key()
     }
 
+    pub async fn register_claimer(
+        &self,
+        claimer_static_pk: PublicKey,
+        claimer_iroh_pubkey: iroh::PublicKey,
+    ) -> anyhow::Result<()> {
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        if dbtx
+            .get_value(&ClaimerKey(claimer_static_pk))
+            .await
+            .is_some()
+        {
+            return Err(anyhow::anyhow!("Claimer is already registered"));
+        }
+
+        dbtx.insert_entry(
+            &ClaimerKey(claimer_static_pk),
+            claimer_iroh_pubkey.as_bytes(),
+        )
+        .await;
+
+        dbtx.insert_entry(
+            &RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes()),
+            &Vec::new(),
+        )
+        .await;
+
+        dbtx.commit_tx_result().await
+    }
+
+    pub async fn unregister_claimer(
+        &self,
+        claimer_static_pk: PublicKey,
+        force: bool,
+    ) -> anyhow::Result<()> {
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        let Some(iroh_pubkey) = dbtx.remove_entry(&ClaimerKey(claimer_static_pk)).await else {
+            return Err(anyhow::anyhow!("Claimer is not registered"));
+        };
+
+        let contracts = dbtx
+            .remove_entry(&RemoteReceivedContractsKey(iroh_pubkey))
+            .await
+            .expect("Always contains value if claimer key is registered");
+
+        // If the claimer has unclaimed contracts, the operation will fail unless
+        // forced.
+        if !force && !contracts.is_empty() {
+            return Err(anyhow::anyhow!("Claimer has unclaimed contracts"));
+        }
+
+        dbtx.commit_tx_result().await
+    }
+
+    pub async fn get_claimable_contracts(
+        &self,
+        claimer_iroh_pubkey: iroh::PublicKey,
+    ) -> Vec<IncomingContract> {
+        let mut dbtx = self.client_ctx.module_db().begin_transaction_nc().await;
+
+        dbtx.get_value(&RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes()))
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|c| if c.is_funded { Some(c.contract) } else { None })
+            .collect()
+    }
+
     /// Request an invoice. For testing you can optionally specify a gateway to
     /// generate the invoice, otherwise a random online gateway will be selected
     /// automatically.
@@ -294,15 +364,21 @@ impl LightningClientModule {
     /// to be shown to the user in the transaction history.
     pub async fn remote_receive(
         &self,
-        recipient_static_pk: PublicKey,
+        claimer_static_pk: PublicKey,
         amount: Amount,
         expiry_secs: u32,
         description: Bolt11InvoiceDescription,
         gateway: Option<SafeUrl>,
-    ) -> Result<(Bolt11Invoice, IncomingContract, OperationId), ReceiveError> {
+    ) -> Result<(Bolt11Invoice, IncomingContract, OperationId), RemoteReceiveError> {
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        let Some(iroh_pubkey) = dbtx.get_value(&ClaimerKey(claimer_static_pk)).await else {
+            return Err(RemoteReceiveError::UnregisteredClaimer);
+        };
+
         let (invoice, contract) = self
             .create_contract_and_fetch_invoice(
-                recipient_static_pk,
+                claimer_static_pk,
                 amount,
                 expiry_secs,
                 description,
@@ -310,9 +386,27 @@ impl LightningClientModule {
             )
             .await?;
 
+        let mut contract_notifications = dbtx
+            .get_value(&RemoteReceivedContractsKey(iroh_pubkey))
+            .await
+            .expect("Always contains value if claimer key is registered");
+
+        contract_notifications.push(RemoteReceiveContractNotification {
+            contract: contract.clone(),
+            is_funded: false,
+        });
+
+        dbtx.insert_entry(
+            &RemoteReceivedContractsKey(iroh_pubkey),
+            &contract_notifications,
+        )
+        .await;
+
         let operation_id = self
-            .start_remote_receive_state_machine(contract.clone())
+            .start_remote_receive_state_machine(contract.clone(), claimer_static_pk)
             .await;
+
+        dbtx.commit_tx_result().await.unwrap(); // TODO: Return an error here.
 
         Ok((invoice, contract, operation_id))
     }
@@ -321,13 +415,13 @@ impl LightningClientModule {
     /// the corresponding invoice.
     async fn create_contract_and_fetch_invoice(
         &self,
-        recipient_static_pk: PublicKey,
+        claimer_static_pk: PublicKey,
         amount: Amount,
         expiry_secs: u32,
         description: Bolt11InvoiceDescription,
         gateway: Option<SafeUrl>,
-    ) -> Result<(Bolt11Invoice, IncomingContract), ReceiveError> {
-        let (ephemeral_tweak, ephemeral_pk) = generate_ephemeral_tweak(recipient_static_pk);
+    ) -> Result<(Bolt11Invoice, IncomingContract), RemoteReceiveError> {
+        let (ephemeral_tweak, ephemeral_pk) = generate_ephemeral_tweak(claimer_static_pk);
 
         let encryption_seed = ephemeral_tweak
             .consensus_hash::<sha256::Hash>()
@@ -342,17 +436,17 @@ impl LightningClientModule {
                 gateway.clone(),
                 self.routing_info(&gateway)
                     .await
-                    .map_err(ReceiveError::GatewayConnectionError)?
-                    .ok_or(ReceiveError::UnknownFederation)?,
+                    .map_err(RemoteReceiveError::GatewayConnectionError)?
+                    .ok_or(RemoteReceiveError::UnknownFederation)?,
             ),
             None => self
                 .get_random_gateway()
                 .await
-                .map_err(ReceiveError::FailedToSelectGateway)?,
+                .map_err(RemoteReceiveError::FailedToSelectGateway)?,
         };
 
         if !routing_info.receive_fee.le(&PaymentFee::RECEIVE_FEE_LIMIT) {
-            return Err(ReceiveError::PaymentFeeExceedsLimit);
+            return Err(RemoteReceiveError::PaymentFeeExceedsLimit);
         }
 
         let contract_amount = routing_info.receive_fee.subtract_from(amount.msats);
@@ -360,14 +454,14 @@ impl LightningClientModule {
         // The dust limit ensures that the incoming contract can be claimed without
         // additional funds as the contracts amount is sufficient to cover the fees
         if contract_amount < Amount::from_sats(50) {
-            return Err(ReceiveError::DustAmount);
+            return Err(RemoteReceiveError::DustAmount);
         }
 
         let expiration = duration_since_epoch()
             .as_secs()
             .saturating_add(u64::from(expiry_secs));
 
-        let claim_pk = recipient_static_pk
+        let claim_pk = claimer_static_pk
             .mul_tweak(
                 secp256k1::SECP256K1,
                 &Scalar::from_be_bytes(ephemeral_tweak).expect("Within curve order"),
@@ -397,14 +491,14 @@ impl LightningClientModule {
                 expiry_secs,
             )
             .await
-            .map_err(ReceiveError::GatewayConnectionError)?;
+            .map_err(RemoteReceiveError::GatewayConnectionError)?;
 
         if invoice.payment_hash() != &preimage.consensus_hash() {
-            return Err(ReceiveError::InvalidInvoicePaymentHash);
+            return Err(RemoteReceiveError::InvalidInvoicePaymentHash);
         }
 
         if invoice.amount_milli_satoshis() != Some(amount.msats) {
-            return Err(ReceiveError::InvalidInvoiceAmount);
+            return Err(RemoteReceiveError::InvalidInvoiceAmount);
         }
 
         Ok((invoice, contract))
@@ -412,12 +506,17 @@ impl LightningClientModule {
 
     /// Start a remote receive state machine that
     /// waits for an incoming contract to be funded.
-    async fn start_remote_receive_state_machine(&self, contract: IncomingContract) -> OperationId {
+    async fn start_remote_receive_state_machine(
+        &self,
+        contract: IncomingContract,
+        claimer_pubkey: PublicKey,
+    ) -> OperationId {
         let operation_id = OperationId::from_encodable(&contract.clone());
 
         let receive_sm = LightningClientStateMachines::RemoteReceive(RemoteReceiveStateMachine {
             common: RemoteReceiveSMCommon {
                 operation_id,
+                claimer_pubkey,
                 contract: contract.clone(),
             },
             state: RemoteReceiveSMState::Pending,
@@ -583,7 +682,7 @@ pub enum SelectGatewayError {
 }
 
 #[derive(Error, Debug, Clone, Eq, PartialEq)]
-pub enum ReceiveError {
+pub enum RemoteReceiveError {
     #[error("Failed to select gateway: {0}")]
     FailedToSelectGateway(SelectGatewayError),
     #[error("Gateway connection error: {0}")]
@@ -598,6 +697,8 @@ pub enum ReceiveError {
     InvalidInvoicePaymentHash,
     #[error("The invoice's amount is incorrect")]
     InvalidInvoiceAmount,
+    #[error("The pubkey of the claimer is not registered")]
+    UnregisteredClaimer,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Decodable, Encodable)]

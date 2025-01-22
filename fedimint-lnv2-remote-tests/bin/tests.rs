@@ -48,13 +48,13 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap();
 
-        dev_fed
-            .lnd()
-            .await
-            .unwrap()
-            .pay_bolt11_invoice(invoice.to_string())
-            .await
-            .unwrap();
+        // dev_fed
+        //     .lnd()
+        //     .await
+        //     .unwrap()
+        //     .pay_bolt11_invoice(invoice.to_string())
+        //     .await
+        //     .unwrap();
 
         await_receive_funded(&receiver_client, operation_id)
             .await

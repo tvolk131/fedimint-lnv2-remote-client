@@ -18,7 +18,7 @@ enum Opts {
     /// generate the invoice, otherwise a gateway will be selected
     /// automatically.
     RemoteReceive {
-        recipient_static_pk: PublicKey,
+        claimer_static_pk: PublicKey,
         amount: Amount,
         #[arg(long)]
         gateway: Option<SafeUrl>,
@@ -54,13 +54,13 @@ pub(crate) async fn handle_cli_command(
     let value = match opts {
         Opts::GetPublicKey => json(lightning.get_public_key()),
         Opts::RemoteReceive {
-            recipient_static_pk,
+            claimer_static_pk,
             amount,
             gateway,
         } => json(
             lightning
                 .remote_receive(
-                    recipient_static_pk,
+                    claimer_static_pk,
                     amount,
                     3600,
                     Bolt11InvoiceDescription::Direct(String::new()),
