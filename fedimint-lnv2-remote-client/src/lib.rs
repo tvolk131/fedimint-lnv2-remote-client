@@ -13,12 +13,10 @@ mod remote_receive_sm;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use async_stream::stream;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1;
-use db::GatewayKey;
 use fedimint_api_client::api::DynModuleApi;
 use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::recovery::NoModuleBackup;
@@ -28,13 +26,12 @@ use fedimint_client::sm::{Context, DynState, ModuleNotifier, State, StateTransit
 use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
-use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
+use fedimint_core::db::DatabaseTransaction;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
     ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion, ModuleInit,
     MultiApiVersion,
 };
-use fedimint_core::task::TaskGroup;
 use fedimint_core::time::duration_since_epoch;
 use fedimint_core::util::SafeUrl;
 use fedimint_core::{apply, async_trait_maybe_send, Amount};
@@ -48,11 +45,12 @@ use fedimint_lnv2_common::{
 };
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use secp256k1::{ecdh, Keypair, PublicKey, Scalar};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tpe::{derive_agg_decryption_key, AggregateDecryptionKey};
-use tracing::warn;
 
 use crate::api::LightningFederationApi;
 use crate::claim_sm::{ClaimSMCommon, ClaimSMState, ClaimStateMachine};
@@ -149,7 +147,6 @@ impl ClientModuleInit for LightningRemoteClientInit {
                 .to_secp_key(fedimint_core::secp256k1::SECP256K1),
             self.gateway_conn.clone(),
             args.admin_auth().cloned(),
-            args.task_group(),
         ))
     }
 }
@@ -236,16 +233,7 @@ impl LightningClientModule {
         keypair: Keypair,
         gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
         admin_auth: Option<ApiAuth>,
-        task_group: &TaskGroup,
     ) -> Self {
-        Self::spawn_gateway_map_update_task(
-            federation_id,
-            client_ctx.clone(),
-            module_api.clone(),
-            gateway_conn.clone(),
-            task_group,
-        );
-
         Self {
             federation_id,
             cfg,
@@ -258,69 +246,8 @@ impl LightningClientModule {
         }
     }
 
-    fn spawn_gateway_map_update_task(
-        federation_id: FederationId,
-        client_ctx: ClientContext<Self>,
-        module_api: DynModuleApi,
-        gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
-        task_group: &TaskGroup,
-    ) {
-        task_group.spawn("gateway_map_update_task", move |handle| async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
-            let mut shutdown_rx = handle.make_shutdown_rx();
-
-            loop {
-                tokio::select! {
-                    _  = &mut Box::pin(interval.tick()) => {
-                        Self::update_gateway_map(
-                            &federation_id,
-                            &client_ctx,
-                            &module_api,
-                            &gateway_conn
-                        ).await;
-                    },
-                    () = &mut shutdown_rx => { break },
-                };
-            }
-        });
-    }
-
-    async fn update_gateway_map(
-        federation_id: &FederationId,
-        client_ctx: &ClientContext<Self>,
-        module_api: &DynModuleApi,
-        gateway_conn: &Arc<dyn GatewayConnection + Send + Sync>,
-    ) {
-        // Update the mapping from lightning node public keys to gateway api
-        // endpoints maintained in the module database. When paying an invoice this
-        // enables the client to select the gateway that has created the invoice,
-        // if possible, such that the payment does not go over lightning, reducing
-        // fees and latency.
-
-        if let Ok(gateways) = module_api.gateways().await {
-            let mut dbtx = client_ctx.module_db().begin_transaction().await;
-
-            for gateway in gateways {
-                if let Ok(Some(routing_info)) = gateway_conn
-                    .routing_info(gateway.clone(), federation_id)
-                    .await
-                {
-                    dbtx.insert_entry(&GatewayKey(routing_info.lightning_public_key), &gateway)
-                        .await;
-                }
-            }
-
-            if let Err(e) = dbtx.commit_tx_result().await {
-                warn!("Failed to commit the updated gateway mapping to the database: {e}");
-            }
-        }
-    }
-
-    async fn select_gateway(
-        &self,
-        invoice: Option<Bolt11Invoice>,
-    ) -> Result<(SafeUrl, RoutingInfo), SelectGatewayError> {
-        let gateways = self
+    async fn get_random_gateway(&self) -> Result<(SafeUrl, RoutingInfo), SelectGatewayError> {
+        let mut gateways = self
             .module_api
             .gateways()
             .await
@@ -330,21 +257,7 @@ impl LightningClientModule {
             return Err(SelectGatewayError::NoVettedGateways);
         }
 
-        if let Some(invoice) = invoice {
-            if let Some(gateway) = self
-                .client_ctx
-                .module_db()
-                .begin_transaction_nc()
-                .await
-                .get_value(&GatewayKey(invoice.recover_payee_pub_key()))
-                .await
-                .filter(|gateway| gateways.contains(gateway))
-            {
-                if let Ok(Some(routing_info)) = self.routing_info(&gateway).await {
-                    return Ok((gateway, routing_info));
-                }
-            }
-        }
+        gateways.shuffle(&mut thread_rng());
 
         for gateway in gateways {
             if let Ok(Some(routing_info)) = self.routing_info(&gateway).await {
@@ -433,7 +346,7 @@ impl LightningClientModule {
                     .ok_or(ReceiveError::UnknownFederation)?,
             ),
             None => self
-                .select_gateway(None)
+                .get_random_gateway()
                 .await
                 .map_err(ReceiveError::FailedToSelectGateway)?,
         };
