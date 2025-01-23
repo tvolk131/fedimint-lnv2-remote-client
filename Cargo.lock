@@ -263,6 +263,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "aquamarine"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f50776554130342de4836ba542aa85a4ddb361690d7e8df13774d7284c3d5c2"
+dependencies = [
+ "include_dir",
+ "itertools 0.10.5",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.95",
+]
+
+[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2583,7 +2597,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf93e683c159ca253534eb9dab2968cabfcd410e6622394b1b918a5d04ce14fa"
 dependencies = [
  "anyhow",
- "aquamarine",
+ "aquamarine 0.5.0",
  "async-stream",
  "async-trait",
  "bitcoin",
@@ -2721,7 +2735,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a7b582fee5876f80c8e46f5bfd5ce48a50fb5eaac5396f73c256f5be61ffa05"
 dependencies = [
  "anyhow",
- "aquamarine",
+ "aquamarine 0.5.0",
  "async-stream",
  "async-trait",
  "bitcoin",
@@ -2774,7 +2788,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1bf1f13ab0f5f9c85845ee1b72eb9e28bcc4a8a3d5fb0743ce361127f6bfe25"
 dependencies = [
  "anyhow",
- "aquamarine",
+ "aquamarine 0.5.0",
  "async-stream",
  "async-trait",
  "axum 0.7.9",
@@ -2856,7 +2870,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35905d6bf9442f3be5eca42e32a071bc6006727fe759c8029456b35033272ecd"
 dependencies = [
  "anyhow",
- "aquamarine",
+ "aquamarine 0.5.0",
  "async-stream",
  "async-trait",
  "bitcoin",
@@ -2905,6 +2919,7 @@ name = "fedimint-lnv2-remote-client"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "aquamarine 0.6.0",
  "async-stream",
  "async-trait",
  "bincode 1.3.3",
@@ -3066,7 +3081,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2f6cf057d65613b6c27c779bac56f1c23f4fab6197796365aa4be08892b8cfa"
 dependencies = [
  "anyhow",
- "aquamarine",
+ "aquamarine 0.5.0",
  "async-stream",
  "async-trait",
  "base64 0.22.1",
@@ -3428,7 +3443,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54b44bfc4daf6d306646220fd19e8f7922ab79f079ab45af9df8a416baddfa14"
 dependencies = [
  "anyhow",
- "aquamarine",
+ "aquamarine 0.5.0",
  "async-stream",
  "async-trait",
  "bitcoin",

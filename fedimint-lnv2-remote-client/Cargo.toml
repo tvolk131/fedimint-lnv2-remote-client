@@ -15,6 +15,7 @@ default = []
 cli = ["dep:clap"]
 
 [dependencies]
+aquamarine = "0.6.0"
 async-stream = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
