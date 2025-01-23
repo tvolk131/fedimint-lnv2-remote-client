@@ -3,8 +3,6 @@ use fedimint_core::secp256k1::PublicKey;
 use fedimint_core::{impl_db_lookup, impl_db_record};
 use fedimint_lnv2_common::contracts::IncomingContract;
 
-use crate::remote_receive_sm::RemoteReceiveSMState;
-
 #[repr(u8)]
 #[derive(Clone, Debug)]
 pub enum DbKeyPrefix {

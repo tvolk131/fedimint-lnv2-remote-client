@@ -2907,6 +2907,7 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
+ "bincode 1.3.3",
  "bitcoin",
  "clap",
  "erased-serde 0.4.5",

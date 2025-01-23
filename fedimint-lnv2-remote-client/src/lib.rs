@@ -9,6 +9,7 @@ mod claim_sm;
 #[cfg(feature = "cli")]
 mod cli;
 mod db;
+mod iroh_msgs;
 mod remote_receive_sm;
 
 use std::collections::BTreeMap;
@@ -33,6 +34,7 @@ use fedimint_core::module::{
     ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion, ModuleInit,
     MultiApiVersion,
 };
+use fedimint_core::task::TaskGroup;
 use fedimint_core::time::duration_since_epoch;
 use fedimint_core::util::SafeUrl;
 use fedimint_core::{apply, async_trait_maybe_send, Amount};
@@ -45,6 +47,7 @@ use fedimint_lnv2_common::{
     Bolt11InvoiceDescription, ContractId, LightningModuleTypes, MODULE_CONSENSUS_VERSION,
 };
 use futures::StreamExt;
+use iroh_msgs::{ClaimerRequest, RemoteReceiverResponse};
 use lightning_invoice::Bolt11Invoice;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
@@ -60,6 +63,9 @@ use crate::remote_receive_sm::{
 };
 
 const KIND: ModuleKind = ModuleKind::from_static_str("lnv2");
+
+/// The maximum size of an Iroh request in bytes. Set to 1MB.
+const IROH_REQUEST_SIZE_LIMIT_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationMeta {
@@ -148,14 +154,15 @@ impl ClientModuleInit for LightningRemoteClientInit {
                 .to_secp_key(fedimint_core::secp256k1::SECP256K1),
             self.gateway_conn.clone(),
             args.admin_auth().cloned(),
+            args.task_group(),
         ))
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct LightningClientContext {
-    federation_id: FederationId,
-    gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
+    iroh_secret_key: iroh::SecretKey,
+    iroh_remote_receive_endpoint: Option<iroh::Endpoint>,
 }
 
 impl Context for LightningClientContext {
@@ -185,8 +192,8 @@ impl ClientModule for LightningClientModule {
 
     fn context(&self) -> Self::ModuleStateMachineContext {
         LightningClientContext {
-            federation_id: self.federation_id,
-            gateway_conn: self.gateway_conn.clone(),
+            iroh_secret_key: iroh::SecretKey::from_bytes(&self.keypair.secret_bytes()),
+            iroh_remote_receive_endpoint: None,
         }
     }
 
@@ -234,7 +241,10 @@ impl LightningClientModule {
         keypair: Keypair,
         gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
         admin_auth: Option<ApiAuth>,
+        task_group: &TaskGroup,
     ) -> Self {
+        Self::spawn_iroh_request_handler_task(client_ctx.clone(), keypair.clone(), task_group);
+
         Self {
             federation_id,
             cfg,
@@ -245,6 +255,90 @@ impl LightningClientModule {
             gateway_conn,
             admin_auth,
         }
+    }
+
+    fn spawn_iroh_request_handler_task(
+        client_ctx: ClientContext<Self>,
+        keypair: Keypair,
+        task_group: &TaskGroup,
+    ) {
+        task_group.spawn("iroh_request_handler_task", move |handle| async move {
+            let mut shutdown_rx = handle.make_shutdown_rx();
+
+            // TODO: Retry rather than unwrapping.
+            let endpoint = iroh::Endpoint::builder()
+                .secret_key(iroh::SecretKey::from_bytes(&keypair.secret_bytes()))
+                .bind()
+                .await
+                .unwrap();
+
+            loop {
+                tokio::select! {
+                    incoming_connection_or = endpoint.accept() => {
+                        // If `accept()` yields `None`, the endpoint has been closed.
+                        let Some(incoming_connection) = incoming_connection_or else { break };
+
+                        // TODO: Log error.
+                        let Ok(connecting) = incoming_connection.accept() else { continue };
+
+                        // TODO: Log error.
+                        let Ok(connection) = connecting.await else { continue };
+
+                        let Ok(claimer_iroh_pubkey) = iroh::endpoint::get_remote_node_id(&connection) else { continue };
+
+                        // TODO: Log error.
+                        let Ok((send_stream, recv_stream)) = connection.accept_bi().await else { continue };
+
+                        let _ = Self::handle_iroh_connection_from_claimer(
+                            send_stream,
+                            recv_stream,
+                            claimer_iroh_pubkey,
+                            client_ctx.clone(),
+                        ).await;
+                    },
+                    () = &mut shutdown_rx => {
+                        endpoint.close().await;
+                        break;
+                    },
+                };
+            }
+        });
+    }
+
+    async fn handle_iroh_connection_from_claimer(
+        mut send_stream: iroh::endpoint::SendStream,
+        mut recv_stream: iroh::endpoint::RecvStream,
+        claimer_iroh_pubkey: iroh::PublicKey,
+        client_ctx: ClientContext<Self>,
+    ) -> anyhow::Result<()> {
+        let request_bytes = recv_stream
+            .read_to_end(IROH_REQUEST_SIZE_LIMIT_BYTES)
+            .await?;
+
+        let request: ClaimerRequest = bincode::deserialize(&request_bytes)?;
+
+        let mut dbtx = client_ctx.module_db().begin_transaction().await;
+
+        Self::remove_claimed_contracts(
+            &mut dbtx.to_ref_nc(),
+            claimer_iroh_pubkey,
+            request.claimed_contract_ids,
+        )
+        .await;
+
+        let claimable_contracts =
+            Self::get_claimable_contracts(&mut dbtx.to_ref_nc(), claimer_iroh_pubkey).await;
+
+        let response = RemoteReceiverResponse {
+            claimable_contracts,
+        };
+
+        // TODO: `write_all()` is *NOT* cancel-safe.
+        send_stream
+            .write_all(&bincode::serialize(&response).unwrap())
+            .await?;
+
+        Ok(())
     }
 
     async fn get_random_gateway(&self) -> Result<(SafeUrl, RoutingInfo), SelectGatewayError> {
@@ -338,11 +432,9 @@ impl LightningClientModule {
     }
 
     pub async fn get_claimable_contracts(
-        &self,
+        dbtx: &mut DatabaseTransaction<'_>,
         claimer_iroh_pubkey: iroh::PublicKey,
     ) -> Vec<IncomingContract> {
-        let mut dbtx = self.client_ctx.module_db().begin_transaction_nc().await;
-
         dbtx.get_value(&RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes()))
             .await
             .unwrap_or_default()
@@ -351,29 +443,17 @@ impl LightningClientModule {
             .collect()
     }
 
-    pub async fn remove_claimable_contracts(
-        &self,
+    pub async fn remove_claimed_contracts(
+        dbtx: &mut DatabaseTransaction<'_>,
         claimer_iroh_pubkey: iroh::PublicKey,
         contract_ids: Vec<ContractId>,
-    ) -> anyhow::Result<()> {
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+    ) {
+        let key = RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes());
 
-        let Some(mut contract_notifications) = dbtx
-            .get_value(&RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes()))
-            .await
-        else {
-            return Ok(());
-        };
-
-        contract_notifications.retain(|c| !contract_ids.contains(&c.contract.contract_id()));
-
-        dbtx.insert_entry(
-            &RemoteReceivedContractsKey(*claimer_iroh_pubkey.as_bytes()),
-            &contract_notifications,
-        )
-        .await;
-
-        dbtx.commit_tx_result().await
+        if let Some(mut contract_notifications) = dbtx.get_value(&key).await {
+            contract_notifications.retain(|c| !contract_ids.contains(&c.contract.contract_id()));
+            dbtx.insert_entry(&key, &contract_notifications).await;
+        }
     }
 
     /// Request an invoice. For testing you can optionally specify a gateway to
