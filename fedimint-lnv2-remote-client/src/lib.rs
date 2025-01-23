@@ -67,6 +67,8 @@ const KIND: ModuleKind = ModuleKind::from_static_str("lnv2");
 /// The maximum size of an Iroh request in bytes. Set to 1MB.
 const IROH_REQUEST_SIZE_LIMIT_BYTES: usize = 1024 * 1024;
 
+const LNV2_REMOTE_RECEIVE_ALPN: &[u8] = b"lnv2-remote-receive";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationMeta {
     pub contract: IncomingContract,
@@ -268,6 +270,7 @@ impl LightningClientModule {
             // TODO: Retry rather than unwrapping.
             let endpoint = iroh::Endpoint::builder()
                 .secret_key(iroh::SecretKey::from_bytes(&keypair.secret_bytes()))
+                .alpns(vec![LNV2_REMOTE_RECEIVE_ALPN.to_vec()])
                 .bind()
                 .await
                 .unwrap();
@@ -339,6 +342,65 @@ impl LightningClientModule {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn sync_with_remote_receiver(
+        &self,
+        remote_receiver_iroh_pubkey: iroh::PublicKey,
+    ) -> anyhow::Result<()> {
+        let claimable_contracts = self
+            .send_request_to_remote_receiver(remote_receiver_iroh_pubkey, Vec::new())
+            .await?;
+
+        let contract_ids = claimable_contracts
+            .iter()
+            .map(|contract| contract.contract_id())
+            .collect();
+
+        for contract in claimable_contracts {
+            self.claim_contract(contract).await;
+        }
+
+        self.send_request_to_remote_receiver(remote_receiver_iroh_pubkey, contract_ids)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn send_request_to_remote_receiver(
+        &self,
+        remote_receiver_iroh_pubkey: iroh::PublicKey,
+        claimed_contract_ids: Vec<ContractId>,
+    ) -> anyhow::Result<Vec<IncomingContract>> {
+        let endpoint = iroh::Endpoint::builder()
+            .secret_key(iroh::SecretKey::from_bytes(&self.keypair.secret_bytes()))
+            .alpns(vec![LNV2_REMOTE_RECEIVE_ALPN.to_vec()])
+            .bind()
+            .await?;
+
+        let connection = endpoint
+            .connect(remote_receiver_iroh_pubkey, LNV2_REMOTE_RECEIVE_ALPN)
+            .await?;
+
+        let (mut send_stream, mut recv_stream) = connection.open_bi().await?;
+
+        // TODO: `write_all()` is *NOT* cancel-safe.
+        send_stream
+            .write_all(
+                &bincode::serialize(&ClaimerRequest {
+                    claimed_contract_ids,
+                })
+                .unwrap(),
+            )
+            .await?;
+
+        let response_bytes = recv_stream
+            .read_to_end(IROH_REQUEST_SIZE_LIMIT_BYTES)
+            .await?;
+
+        let response: RemoteReceiverResponse = bincode::deserialize(&response_bytes)?;
+
+        Ok(response.claimable_contracts)
     }
 
     async fn get_random_gateway(&self) -> Result<(SafeUrl, RoutingInfo), SelectGatewayError> {
