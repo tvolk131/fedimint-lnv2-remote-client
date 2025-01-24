@@ -263,20 +263,10 @@ impl LightningClientModule {
     }
 
     pub async fn run_remote_receiver_server(&self) {
-        let _ = Self::spawn_iroh_request_handler_task(
-            self.client_ctx.clone(),
-            self.iroh_endpoint.clone(),
-            &self.task_group,
-        )
-        .await;
-    }
+        let client_ctx = self.client_ctx.clone();
+        let iroh_endpoint = self.iroh_endpoint.clone();
 
-    fn spawn_iroh_request_handler_task(
-        client_ctx: ClientContext<Self>,
-        iroh_endpoint: Arc<iroh::Endpoint>,
-        task_group: &TaskGroup,
-    ) -> tokio::sync::oneshot::Receiver<()> {
-        task_group.spawn("iroh_request_handler_task", move |handle| async move {
+        self.task_group.spawn("iroh_request_handler_task", move |handle| async move {
             let mut shutdown_rx = handle.make_shutdown_rx();
 
             loop {
@@ -309,7 +299,7 @@ impl LightningClientModule {
                     },
                 };
             }
-        })
+        }).await.unwrap();
     }
 
     async fn handle_iroh_connection_from_claimer(
