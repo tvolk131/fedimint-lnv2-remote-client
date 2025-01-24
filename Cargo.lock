@@ -3,6 +3,20 @@
 version = 4
 
 [[package]]
+name = "acto"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31c372578ce4215ccf94ec3f3585fbb6a902e47d07b064ff8a55d850ffb5025e"
+dependencies = [
+ "parking_lot",
+ "pin-project-lite",
+ "rustc_version",
+ "smol_str",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -275,6 +289,12 @@ dependencies = [
  "quote",
  "syn 2.0.95",
 ]
+
+[[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
 name = "argon2"
@@ -2955,9 +2975,11 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "devimint",
+ "fedimint-client",
  "fedimint-core",
  "fedimint-lnv2-common",
  "fedimint-lnv2-remote-client",
+ "iroh",
  "lightning-invoice",
  "serde_json",
  "substring",
@@ -4810,6 +4832,7 @@ checksum = "27ee97c8412bbf06d7c5253c6638a8bac741cb44d405669cedbfd7d47cd68090"
 dependencies = [
  "aead",
  "anyhow",
+ "axum 0.7.9",
  "backoff",
  "bytes",
  "concurrent-queue",
@@ -4851,6 +4874,7 @@ dependencies = [
  "smallvec",
  "strum 0.26.3",
  "stun-rs",
+ "swarm-discovery",
  "thiserror 2.0.11",
  "tokio",
  "tokio-rustls 0.26.0",
@@ -4987,6 +5011,8 @@ checksum = "21e4c13758cac9d81a6793b59eba17da2ccbf90a76278ec160d7c8f90b1bb903"
 dependencies = [
  "anyhow",
  "bytes",
+ "clap",
+ "dashmap",
  "data-encoding",
  "derive_more 1.0.0",
  "futures-buffered",
@@ -5009,8 +5035,14 @@ dependencies = [
  "pin-project",
  "postcard",
  "rand",
+ "rcgen",
+ "regex",
+ "reloadable-state",
  "reqwest 0.12.9",
  "rustls 0.23.21",
+ "rustls-cert-file-reader",
+ "rustls-cert-reloadable-resolver",
+ "rustls-pemfile 2.1.2",
  "rustls-webpki 0.102.8",
  "serde",
  "stun-rs",
@@ -5018,10 +5050,13 @@ dependencies = [
  "time",
  "tokio",
  "tokio-rustls 0.26.0",
+ "tokio-rustls-acme",
  "tokio-tungstenite 0.21.0",
  "tokio-tungstenite-wasm",
  "tokio-util",
+ "toml",
  "tracing",
+ "tracing-subscriber",
  "url",
  "webpki-roots 0.26.6",
 ]
@@ -7422,6 +7457,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbb5fb1acd8a1a18b3dd5be62d25485eb770e05afb408a9627d14d451bae12da"
 
 [[package]]
+name = "reloadable-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dc20ac1418988b60072d783c9f68e28a173fb63493c127952f6face3b40c6e0"
+
+[[package]]
+name = "reloadable-state"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3853ef78d45b50f8b989896304a85239539d39b7f866a000e8846b9b72d74ce8"
+dependencies = [
+ "arc-swap",
+ "reloadable-core",
+ "tokio",
+]
+
+[[package]]
 name = "reqwest"
 version = "0.11.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7588,6 +7640,7 @@ dependencies = [
  "fedimint-build 0.4.0-alpha",
  "fedimint-cli",
  "fedimint-core",
+ "fedimint-ln-client",
  "fedimint-lnv2-remote-client",
  "fedimint-meta-client",
  "fedimint-mint-client",
@@ -7757,6 +7810,41 @@ dependencies = [
  "rustls-webpki 0.102.8",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "rustls-cert-file-reader"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f351eaf1dd003022222d2b1399caac198fefeab45c46b0f98bb03fc7cda9bb27"
+dependencies = [
+ "rustls-cert-read",
+ "rustls-pemfile 2.1.2",
+ "rustls-pki-types",
+ "thiserror 2.0.11",
+ "tokio",
+]
+
+[[package]]
+name = "rustls-cert-read"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd46e8c5ae4de3345c4786a83f99ec7aff287209b9e26fa883c473aeb28f19d5"
+dependencies = [
+ "rustls-pki-types",
+]
+
+[[package]]
+name = "rustls-cert-reloadable-resolver"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe1baa8a3a1f05eaa9fc55aed4342867f70e5c170ea3bfed1b38c51a4857c0c8"
+dependencies = [
+ "futures-util",
+ "reloadable-state",
+ "rustls 0.23.21",
+ "rustls-cert-read",
+ "thiserror 2.0.11",
 ]
 
 [[package]]
@@ -8375,6 +8463,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
+name = "smol_str"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fad6c857cbab2627dcf01ec85a623ca4e7dcb5691cbaa3d7fb7653671f0d09c9"
+
+[[package]]
 name = "socket2"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8639,6 +8733,21 @@ dependencies = [
  "rand",
  "socket2 0.5.6",
  "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "swarm-discovery"
+version = "0.3.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58b529764e2f746ef954505dd7cb3c03331bd678c52a387e4a86540577f41e45"
+dependencies = [
+ "acto",
+ "anyhow",
+ "hickory-proto",
+ "rand",
+ "socket2 0.5.6",
  "tokio",
  "tracing",
 ]
@@ -8986,6 +9095,34 @@ dependencies = [
  "rustls 0.23.21",
  "rustls-pki-types",
  "tokio",
+]
+
+[[package]]
+name = "tokio-rustls-acme"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3184e8e292a828dd4bca5b2a60aba830ec5ed873a66c9ebb6e65038fa649e827"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "log",
+ "num-bigint",
+ "pem",
+ "proc-macro2",
+ "rcgen",
+ "reqwest 0.12.9",
+ "ring 0.17.8",
+ "rustls 0.23.21",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.11",
+ "time",
+ "tokio",
+ "tokio-rustls 0.26.0",
+ "webpki-roots 0.26.6",
+ "x509-parser",
 ]
 
 [[package]]

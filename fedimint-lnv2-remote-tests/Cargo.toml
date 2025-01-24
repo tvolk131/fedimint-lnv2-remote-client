@@ -22,3 +22,8 @@ tracing = { workspace = true }
 tokio = { workspace = true }
 lightning-invoice = { workspace = true }
 substring = "1.4.5"
+iroh = { version = "0.31.0", features = [
+    "test-utils",
+    "discovery-local-network",
+] }
+fedimint-client = "0.5.0"
