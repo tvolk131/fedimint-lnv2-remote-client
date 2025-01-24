@@ -453,26 +453,22 @@ impl LightningClientModule {
         }
     }
 
-    pub async fn register_claimer(
-        &self,
-        claimer_static_pk: PublicKey,
-        claimer_iroh_pk: iroh::PublicKey,
-    ) -> anyhow::Result<()> {
+    pub async fn register_claimer(&self, pks: PublicKeys) -> anyhow::Result<()> {
         let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
 
         if dbtx
-            .get_value(&ClaimerKey(claimer_static_pk))
+            .get_value(&ClaimerKey(pks.claimer_static_pk))
             .await
             .is_some()
         {
             return Err(anyhow::anyhow!("Claimer is already registered"));
         }
 
-        dbtx.insert_entry(&ClaimerKey(claimer_static_pk), claimer_iroh_pk.as_bytes())
+        dbtx.insert_entry(&ClaimerKey(pks.claimer_static_pk), pks.iroh_pk.as_bytes())
             .await;
 
         dbtx.insert_entry(
-            &RemoteReceivedContractsKey(*claimer_iroh_pk.as_bytes()),
+            &RemoteReceivedContractsKey(*pks.iroh_pk.as_bytes()),
             &Vec::new(),
         )
         .await;

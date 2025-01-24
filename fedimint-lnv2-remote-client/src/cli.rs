@@ -9,7 +9,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::api::LightningFederationApi;
-use crate::{Bolt11InvoiceDescription, LightningClientModule};
+use crate::{Bolt11InvoiceDescription, LightningClientModule, PublicKeys};
 
 #[derive(Parser, Serialize)]
 enum Opts {
@@ -75,7 +75,10 @@ pub(crate) async fn handle_cli_command(
             claimer_iroh_pk,
         } => json(
             lightning
-                .register_claimer(claimer_static_pk, claimer_iroh_pk)
+                .register_claimer(PublicKeys {
+                    claimer_static_pk,
+                    iroh_pk: claimer_iroh_pk,
+                })
                 .await
                 .unwrap(),
         ),
