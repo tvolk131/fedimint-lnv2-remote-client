@@ -16,6 +16,10 @@ fedimint-core = { workspace = true }
 fedimint-lnv2-remote-client = { path = "../fedimint-lnv2-remote-client", features = [
     "cli",
 ] }
+fedimint-ln-client = "0.5.0"
+fedimint-wallet-client = "0.5.0"
+fedimint-meta-client = "0.5.0"
+fedimint-mint-client = "0.5.0"
 tokio = { workspace = true }
 
 [build-dependencies]
