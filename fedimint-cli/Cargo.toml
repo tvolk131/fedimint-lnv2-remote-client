@@ -1,7 +1,7 @@
 [package]
 name = "roastr-cli"
 version = "0.0.1"
-authors = ["m1sterc001guy"]
+authors = ["tvolk131"]
 edition = "2021"
 description = "fedimint-cli with custom module set"
 

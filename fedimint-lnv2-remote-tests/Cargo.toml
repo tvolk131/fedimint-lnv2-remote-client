@@ -1,9 +1,9 @@
 [package]
 name = "fedimint-lnv2-remote-tests"
 version = "0.0.1"
-authors = ["m1sterc001guy"]
+authors = ["tvolk131"]
 edition = "2021"
-description = "A federated nostr client."
+description = "A federated remote lightning receive client."
 license = "MIT"
 publish = false
 
