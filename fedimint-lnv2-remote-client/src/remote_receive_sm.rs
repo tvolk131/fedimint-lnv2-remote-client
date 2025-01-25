@@ -9,7 +9,7 @@ use fedimint_lnv2_common::ContractId;
 use tracing::instrument;
 
 use crate::api::LightningFederationApi;
-use crate::db::{ClaimerKey, RemoteReceivedContractsKey};
+use crate::db::RemoteReceivedContractsKey;
 use crate::LightningClientContext;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Decodable, Encodable)]
@@ -116,38 +116,31 @@ impl RemoteReceiveStateMachine {
             RemoteReceiveSMState::Funded
         };
 
-        let iroh_pubkey_or = dbtx
-            .module_tx()
-            .get_value(&ClaimerKey(claimer_pubkey))
-            .await;
-
         // If the contract is stored, update it.
-        if let Some(iroh_pubkey) = iroh_pubkey_or {
-            let mut unnotified_contracts = dbtx
-                .module_tx()
-                .get_value(&RemoteReceivedContractsKey(iroh_pubkey))
-                .await
-                .expect("Always contains value if claimer key is registered");
+        let mut unnotified_contracts = dbtx
+            .module_tx()
+            .get_value(&RemoteReceivedContractsKey(claimer_pubkey))
+            .await
+            .expect("Always contains value if claimer key is registered");
 
-            if final_state == RemoteReceiveSMState::Funded {
-                // Mark the contract as funded.
-                for unnotified_contract in &mut unnotified_contracts {
-                    if unnotified_contract.contract.contract_id() == contract_id {
-                        unnotified_contract.is_funded = true;
-                    }
+        if final_state == RemoteReceiveSMState::Funded {
+            // Mark the contract as funded.
+            for unnotified_contract in &mut unnotified_contracts {
+                if unnotified_contract.contract.contract_id() == contract_id {
+                    unnotified_contract.is_funded = true;
                 }
-            } else {
-                // Remove the contract if it expired.
-                unnotified_contracts.retain(|c| c.contract.contract_id() != contract_id);
             }
+        } else {
+            // Remove the contract if it expired.
+            unnotified_contracts.retain(|c| c.contract.contract_id() != contract_id);
+        }
 
-            dbtx.module_tx()
-                .insert_entry(
-                    &RemoteReceivedContractsKey(iroh_pubkey),
-                    &unnotified_contracts,
-                )
-                .await;
-        };
+        dbtx.module_tx()
+            .insert_entry(
+                &RemoteReceivedContractsKey(claimer_pubkey),
+                &unnotified_contracts,
+            )
+            .await;
 
         old_state.update(final_state)
     }

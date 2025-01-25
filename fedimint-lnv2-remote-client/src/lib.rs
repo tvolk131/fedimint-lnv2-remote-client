@@ -8,7 +8,6 @@ mod api;
 #[cfg(feature = "cli")]
 mod cli;
 mod db;
-mod iroh_msgs;
 mod remote_receive_sm;
 
 use std::collections::BTreeMap;
@@ -17,7 +16,7 @@ use std::sync::Arc;
 use async_stream::stream;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1;
-use db::{ClaimerKey, RemoteReceiveContractNotification, RemoteReceivedContractsKey};
+use db::{RemoteReceiveContractNotification, RemoteReceivedContractsKey};
 use fedimint_api_client::api::DynModuleApi;
 use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::recovery::NoModuleBackup;
@@ -48,13 +47,13 @@ use fedimint_lnv2_common::{
     MODULE_CONSENSUS_VERSION,
 };
 use futures::StreamExt;
-use iroh_msgs::{ClaimerRequest, RemoteReceiverResponse};
 use lightning_invoice::Bolt11Invoice;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use secp256k1::{ecdh, Keypair, PublicKey, Scalar};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::sync::Mutex;
 use tpe::{derive_agg_decryption_key, AggregateDecryptionKey};
 
 use crate::api::LightningFederationApi;
@@ -63,17 +62,6 @@ use crate::remote_receive_sm::{
 };
 
 const KIND: ModuleKind = ModuleKind::from_static_str("lnv2");
-
-/// The maximum size of an Iroh request in bytes. Set to 1MB.
-const IROH_REQUEST_SIZE_LIMIT_BYTES: usize = 1024 * 1024;
-
-const LNV2_REMOTE_RECEIVE_ALPN: &[u8] = b"lnv2-remote-receive";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PublicKeys {
-    pub claimer_static_pk: PublicKey,
-    pub iroh_pk: iroh::PublicKey,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationMeta {
@@ -173,8 +161,12 @@ pub struct LightningClientModule {
     gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
     #[allow(unused)] // The field is only used by the cli feature
     admin_auth: Option<ApiAuth>,
-    iroh_endpoint: Arc<iroh::Endpoint>,
     task_group: TaskGroup,
+    // Lock to ensure that only one db write operation is performed at a time
+    // This is important since we store a list of received contracts in the db
+    // and we need to ensure that modifications to this list don't step on each
+    // other.
+    db_write_lock: Mutex<()>,
 }
 
 #[apply(async_trait_maybe_send!)]
@@ -235,19 +227,6 @@ impl LightningClientModule {
         admin_auth: Option<ApiAuth>,
         task_group: TaskGroup,
     ) -> Self {
-        // TODO: Retry rather than unwrapping.
-        let iroh_endpoint: Arc<iroh::Endpoint> = Arc::new(
-            iroh::Endpoint::builder()
-                .discovery_local_network()
-                // .discovery_n0()
-                // .add_discovery(|_| Some(iroh::discovery::pkarr::PkarrResolver::n0_dns()))
-                .secret_key(iroh::SecretKey::from_bytes(&keypair.secret_bytes()))
-                .alpns(vec![LNV2_REMOTE_RECEIVE_ALPN.to_vec()])
-                .bind()
-                .await
-                .unwrap(),
-        );
-
         Self {
             federation_id,
             cfg,
@@ -257,162 +236,9 @@ impl LightningClientModule {
             keypair,
             gateway_conn,
             admin_auth,
-            iroh_endpoint,
             task_group,
+            db_write_lock: Mutex::new(()),
         }
-    }
-
-    pub async fn run_remote_receiver_server(&self) {
-        let client_ctx = self.client_ctx.clone();
-        let iroh_endpoint = self.iroh_endpoint.clone();
-
-        self.task_group.spawn("iroh_request_handler_task", move |handle| async move {
-            let mut shutdown_rx = handle.make_shutdown_rx();
-
-            loop {
-                tokio::select! {
-                    incoming_connection_or = iroh_endpoint.accept() => {
-                        // If `accept()` yields `None`, the endpoint has been closed.
-                        let Some(incoming_connection) = incoming_connection_or else { break };
-
-                        // TODO: Log error.
-                        let Ok(connecting) = incoming_connection.accept() else { continue };
-
-                        // TODO: Log error.
-                        let Ok(connection) = connecting.await else { continue };
-
-                        let Ok(claimer_iroh_pk) = iroh::endpoint::get_remote_node_id(&connection) else { continue };
-
-                        // TODO: Log error.
-                        let Ok((send_stream, recv_stream)) = connection.accept_bi().await else { continue };
-
-                        let _ = Self::handle_iroh_connection_from_claimer(
-                            send_stream,
-                            recv_stream,
-                            claimer_iroh_pk,
-                            client_ctx.clone(),
-                        ).await;
-                    },
-                    () = &mut shutdown_rx => {
-                        iroh_endpoint.close().await;
-                        break;
-                    },
-                };
-            }
-        }).await.unwrap();
-    }
-
-    async fn handle_iroh_connection_from_claimer(
-        mut send_stream: iroh::endpoint::SendStream,
-        mut recv_stream: iroh::endpoint::RecvStream,
-        claimer_iroh_pk: iroh::PublicKey,
-        client_ctx: ClientContext<Self>,
-    ) -> anyhow::Result<()> {
-        let request_bytes = recv_stream
-            .read_to_end(IROH_REQUEST_SIZE_LIMIT_BYTES)
-            .await?;
-
-        let request: ClaimerRequest = bincode::deserialize(&request_bytes)?;
-
-        let mut dbtx = client_ctx.module_db().begin_transaction().await;
-
-        Self::remove_claimed_contracts(
-            &mut dbtx.to_ref_nc(),
-            claimer_iroh_pk,
-            request.claimed_contract_ids,
-        )
-        .await;
-
-        let claimable_contracts =
-            Self::get_claimable_contracts(&mut dbtx.to_ref_nc(), claimer_iroh_pk).await;
-
-        let response = RemoteReceiverResponse {
-            claimable_contracts,
-        };
-
-        // TODO: `write_all()` is *NOT* cancel-safe.
-        send_stream
-            .write_all(&bincode::serialize(&response).unwrap())
-            .await?;
-
-        send_stream.finish().unwrap();
-
-        Ok(())
-    }
-
-    pub async fn sync_with_remote_receiver(
-        &self,
-        remote_receiver_iroh_pubkey: iroh::PublicKey,
-    ) -> anyhow::Result<()> {
-        let claimable_contracts = self
-            .send_request_to_remote_receiver(remote_receiver_iroh_pubkey, Vec::new())
-            .await?;
-
-        let mut claimed_contract_ids = Vec::new();
-
-        for contract in claimable_contracts {
-            let contract_id = contract.contract_id();
-
-            if self.claim_contract(contract).await.is_ok() {
-                claimed_contract_ids.push(contract_id);
-            }
-        }
-
-        self.send_request_to_remote_receiver(remote_receiver_iroh_pubkey, claimed_contract_ids)
-            .await?;
-
-        Ok(())
-    }
-
-    async fn send_request_to_remote_receiver(
-        &self,
-        remote_receiver_iroh_pubkey: iroh::PublicKey,
-        claimed_contract_ids: Vec<ContractId>,
-    ) -> anyhow::Result<Vec<IncomingContract>> {
-        for i in 0..5 {
-            if self
-                .iroh_endpoint
-                .remote_info(remote_receiver_iroh_pubkey)
-                .is_some()
-            {
-                break;
-            } else if i == 4 {
-                return Err(anyhow::anyhow!("Could not connect to remote receiver"));
-            } else {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            }
-        }
-
-        println!("Got remote receiver info");
-
-        let connection = self
-            .iroh_endpoint
-            .connect(remote_receiver_iroh_pubkey, LNV2_REMOTE_RECEIVE_ALPN)
-            .await?;
-
-        println!("Connected to remote receiver");
-
-        let (mut send_stream, mut recv_stream) = connection.open_bi().await?;
-
-        // TODO: `write_all()` is *NOT* cancel-safe.
-        send_stream
-            .write_all(
-                &bincode::serialize(&ClaimerRequest {
-                    claimed_contract_ids,
-                })
-                .unwrap(),
-            )
-            .await?;
-
-        send_stream.finish().unwrap();
-
-        let response_bytes = recv_stream
-            .read_to_end(IROH_REQUEST_SIZE_LIMIT_BYTES)
-            .await?;
-
-        let response: RemoteReceiverResponse = bincode::deserialize(&response_bytes)?;
-
-        Ok(response.claimable_contracts)
     }
 
     async fn get_random_gateway(&self) -> Result<(SafeUrl, RoutingInfo), SelectGatewayError> {
@@ -446,84 +272,8 @@ impl LightningClientModule {
             .await
     }
 
-    pub fn get_public_keys(&self) -> PublicKeys {
-        PublicKeys {
-            claimer_static_pk: self.keypair.public_key(),
-            iroh_pk: iroh::SecretKey::from_bytes(&self.keypair.secret_bytes()).public(),
-        }
-    }
-
-    pub async fn register_claimer(&self, pks: PublicKeys) -> anyhow::Result<()> {
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
-
-        if dbtx
-            .get_value(&ClaimerKey(pks.claimer_static_pk))
-            .await
-            .is_some()
-        {
-            return Err(anyhow::anyhow!("Claimer is already registered"));
-        }
-
-        dbtx.insert_entry(&ClaimerKey(pks.claimer_static_pk), pks.iroh_pk.as_bytes())
-            .await;
-
-        dbtx.insert_entry(
-            &RemoteReceivedContractsKey(*pks.iroh_pk.as_bytes()),
-            &Vec::new(),
-        )
-        .await;
-
-        dbtx.commit_tx_result().await
-    }
-
-    pub async fn unregister_claimer(
-        &self,
-        claimer_static_pk: PublicKey,
-        force: bool,
-    ) -> anyhow::Result<()> {
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
-
-        let Some(iroh_pubkey) = dbtx.remove_entry(&ClaimerKey(claimer_static_pk)).await else {
-            return Err(anyhow::anyhow!("Claimer is not registered"));
-        };
-
-        let contracts = dbtx
-            .remove_entry(&RemoteReceivedContractsKey(iroh_pubkey))
-            .await
-            .expect("Always contains value if claimer key is registered");
-
-        // If the claimer has unclaimed contracts, the operation will fail unless
-        // forced.
-        if !force && !contracts.is_empty() {
-            return Err(anyhow::anyhow!("Claimer has unclaimed contracts"));
-        }
-
-        dbtx.commit_tx_result().await
-    }
-
-    async fn get_claimable_contracts(
-        dbtx: &mut DatabaseTransaction<'_>,
-        claimer_iroh_pk: iroh::PublicKey,
-    ) -> Vec<IncomingContract> {
-        dbtx.get_value(&RemoteReceivedContractsKey(*claimer_iroh_pk.as_bytes()))
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|c| if c.is_funded { Some(c.contract) } else { None })
-            .collect()
-    }
-
-    async fn remove_claimed_contracts(
-        dbtx: &mut DatabaseTransaction<'_>,
-        claimer_iroh_pk: iroh::PublicKey,
-        contract_ids: Vec<ContractId>,
-    ) {
-        let key = RemoteReceivedContractsKey(*claimer_iroh_pk.as_bytes());
-
-        if let Some(mut contract_notifications) = dbtx.get_value(&key).await {
-            contract_notifications.retain(|c| !contract_ids.contains(&c.contract.contract_id()));
-            dbtx.insert_entry(&key, &contract_notifications).await;
-        }
+    pub fn get_public_key(&self) -> PublicKey {
+        self.keypair.public_key()
     }
 
     /// Request an invoice. For testing you can optionally specify a gateway to
@@ -539,21 +289,15 @@ impl LightningClientModule {
     /// to be shown to the user in the transaction history.
     pub async fn remote_receive(
         &self,
-        claimer_static_pk: PublicKey,
+        claimer_pk: PublicKey,
         amount: Amount,
         expiry_secs: u32,
         description: Bolt11InvoiceDescription,
         gateway: Option<SafeUrl>,
-    ) -> Result<(Bolt11Invoice, IncomingContract, OperationId), RemoteReceiveError> {
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
-
-        let Some(iroh_pubkey) = dbtx.get_value(&ClaimerKey(claimer_static_pk)).await else {
-            return Err(RemoteReceiveError::UnregisteredClaimer);
-        };
-
+    ) -> Result<(Bolt11Invoice, OperationId), RemoteReceiveError> {
         let (invoice, contract) = self
             .create_contract_and_fetch_invoice(
-                claimer_static_pk,
+                claimer_pk,
                 amount,
                 expiry_secs,
                 description,
@@ -561,42 +305,168 @@ impl LightningClientModule {
             )
             .await?;
 
-        let mut contract_notifications = dbtx
-            .get_value(&RemoteReceivedContractsKey(iroh_pubkey))
+        let db_write_lock_handle = self.db_write_lock.lock().await;
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        if let Some(mut contract_notifications) = dbtx
+            .get_value(&RemoteReceivedContractsKey(claimer_pk))
             .await
-            .expect("Always contains value if claimer key is registered");
+        {
+            contract_notifications.push(RemoteReceiveContractNotification {
+                contract: contract.clone(),
+                is_funded: false,
+            });
 
-        contract_notifications.push(RemoteReceiveContractNotification {
-            contract: contract.clone(),
-            is_funded: false,
-        });
+            dbtx.insert_entry(
+                &RemoteReceivedContractsKey(claimer_pk),
+                &contract_notifications,
+            )
+            .await;
+        } else {
+            dbtx.insert_entry(
+                &RemoteReceivedContractsKey(claimer_pk),
+                &vec![RemoteReceiveContractNotification {
+                    contract: contract.clone(),
+                    is_funded: false,
+                }],
+            )
+            .await;
+        }
 
-        dbtx.insert_entry(
-            &RemoteReceivedContractsKey(iroh_pubkey),
-            &contract_notifications,
-        )
-        .await;
+        // Should never fail since we have the write lock.
+        dbtx.commit_tx().await;
+        drop(db_write_lock_handle);
 
         let operation_id = self
-            .start_remote_receive_state_machine(contract.clone(), claimer_static_pk)
+            .start_remote_receive_state_machine(contract, claimer_pk)
             .await;
 
-        dbtx.commit_tx_result().await.unwrap(); // TODO: Return an error here.
+        Ok((invoice, operation_id))
+    }
 
-        Ok((invoice, contract, operation_id))
+    /// Await the final state of the remote receive operation.
+    /// Call this on a remote receiver with an operation ID returned by
+    /// `Self::remote_receive`.
+    pub async fn await_remote_receive(
+        &self,
+        operation_id: OperationId,
+    ) -> anyhow::Result<FinalRemoteReceiveOperationState> {
+        let operation = self.client_ctx.get_operation(operation_id).await?;
+        let mut stream = self.notifier.subscribe(operation_id).await;
+
+        // TODO: Do we need to use `outcome_or_updates` here?
+        // I'm using it here because the LNv2 client does.
+        Ok(self.client_ctx.outcome_or_updates(&operation, operation_id, || {
+            stream! {
+                loop {
+                    if let Some(LightningClientStateMachines::RemoteReceive(state)) = stream.next().await {
+                        match state.state {
+                            RemoteReceiveSMState::Pending => continue,
+                            RemoteReceiveSMState::Funded => {
+                                yield FinalRemoteReceiveOperationState::Funded;
+                                return;
+                            },
+                            RemoteReceiveSMState::Expired => {
+                                yield FinalRemoteReceiveOperationState::Expired;
+                                return;
+                            },
+                        }
+                    }
+                }
+            }
+        }).into_stream().next().await.expect("Stream contains one final state"))
+    }
+
+    /// Call this on a remote receiver to get a list of claimable contracts.
+    pub async fn get_claimable_contracts(&self, claimer_pk: PublicKey) -> Vec<IncomingContract> {
+        let mut dbtx = self.client_ctx.module_db().begin_transaction_nc().await;
+
+        dbtx.get_value(&RemoteReceivedContractsKey(claimer_pk))
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|c| if c.is_funded { Some(c.contract) } else { None })
+            .collect()
+    }
+
+    /// Idempotently remove a list of received contracts.
+    /// Call this on a remote receiver after receiving verification
+    /// from the claimer that the contract has been claimed.
+    pub async fn remove_claimed_contracts(
+        &self,
+        claimer_pk: PublicKey,
+        contract_ids: Vec<ContractId>,
+    ) {
+        let key = RemoteReceivedContractsKey(claimer_pk);
+
+        let db_write_lock_handle = self.db_write_lock.lock().await;
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        if let Some(mut contract_notifications) = dbtx.get_value(&key).await {
+            contract_notifications.retain(|c| !contract_ids.contains(&c.contract.contract_id()));
+            dbtx.insert_entry(&key, &contract_notifications).await;
+        }
+
+        // Should never fail since we have the write lock.
+        dbtx.commit_tx().await;
+        drop(db_write_lock_handle);
+    }
+
+    pub async fn claim_contract(&self, contract: IncomingContract) -> anyhow::Result<()> {
+        let operation_id = OperationId::from_encodable(&contract.clone());
+
+        // TODO: Don't unwrap here.
+        let (claim_keypair, agg_decryption_key) = self.recover_contract_keys(&contract).unwrap();
+
+        let client_input = ClientInput::<LightningInput> {
+            input: LightningInput::V0(LightningInputV0::Incoming(
+                contract.contract_id(),
+                agg_decryption_key,
+            )),
+            amount: contract.commitment.amount,
+            keys: vec![claim_keypair],
+        };
+
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        let (_txid, change_range) = self
+            .client_ctx
+            .claim_inputs(
+                &mut dbtx.to_ref_nc(),
+                ClientInputBundle::new_no_sm(vec![client_input]),
+                operation_id,
+            )
+            .await
+            .expect("Cannot claim input, additional funding needed");
+
+        dbtx.commit_tx_result().await?;
+
+        // TODO: If this returns an error, it either means that the contract
+        // was already claimed, or the federation is malicious. Right now we
+        // don't distinguish between these cases and assume the contract was
+        // already claimed. We should distinguish between these cases in the
+        // future. To do this, we could either:
+        // 1. Add a claim state machine
+        // 2. Store a list of claimed contracts in the module db
+        let _ = self
+            .client_ctx
+            .await_primary_module_outputs(operation_id, change_range)
+            .await;
+
+        Ok(())
     }
 
     /// Create an incoming contract locked to a specified public key and fetch
     /// the corresponding invoice.
     async fn create_contract_and_fetch_invoice(
         &self,
-        claimer_static_pk: PublicKey,
+        claimer_pk: PublicKey,
         amount: Amount,
         expiry_secs: u32,
         description: Bolt11InvoiceDescription,
         gateway: Option<SafeUrl>,
     ) -> Result<(Bolt11Invoice, IncomingContract), RemoteReceiveError> {
-        let (ephemeral_tweak, ephemeral_pk) = generate_ephemeral_tweak(claimer_static_pk);
+        let (ephemeral_tweak, ephemeral_pk) = generate_ephemeral_tweak(claimer_pk);
 
         let encryption_seed = ephemeral_tweak
             .consensus_hash::<sha256::Hash>()
@@ -636,7 +506,7 @@ impl LightningClientModule {
             .as_secs()
             .saturating_add(u64::from(expiry_secs));
 
-        let claim_pk = claimer_static_pk
+        let claim_pk = claimer_pk
             .mul_tweak(
                 secp256k1::SECP256K1,
                 &Scalar::from_be_bytes(ephemeral_tweak).expect("Within curve order"),
@@ -712,47 +582,6 @@ impl LightningClientModule {
         operation_id
     }
 
-    async fn claim_contract(&self, contract: IncomingContract) -> anyhow::Result<()> {
-        let operation_id = OperationId::from_encodable(&contract.clone());
-
-        // TODO: Don't unwrap here.
-        let (claim_keypair, agg_decryption_key) = self.recover_contract_keys(&contract).unwrap();
-
-        let client_input = ClientInput::<LightningInput> {
-            input: LightningInput::V0(LightningInputV0::Incoming(
-                contract.contract_id(),
-                agg_decryption_key,
-            )),
-            amount: contract.commitment.amount,
-            keys: vec![claim_keypair],
-        };
-
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
-
-        let (_txid, change_range) = self
-            .client_ctx
-            .claim_inputs(
-                &mut dbtx.to_ref_nc(),
-                ClientInputBundle::new_no_sm(vec![client_input]),
-                operation_id,
-            )
-            .await
-            .expect("Cannot claim input, additional funding needed");
-
-        dbtx.commit_tx_result().await?;
-
-        if self
-            .client_ctx
-            .await_primary_module_outputs(operation_id, change_range)
-            .await
-            .is_ok()
-        {
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("Failed to claim contract"))
-        }
-    }
-
     fn recover_contract_keys(
         &self,
         contract: &IncomingContract,
@@ -787,37 +616,6 @@ impl LightningClientModule {
         contract.decrypt_preimage(&agg_decryption_key)?;
 
         Some((claim_keypair, agg_decryption_key))
-    }
-
-    /// Await the final state of the remote receive operation.
-    pub async fn await_final_remote_receive_operation_state(
-        &self,
-        operation_id: OperationId,
-    ) -> anyhow::Result<FinalRemoteReceiveOperationState> {
-        let operation = self.client_ctx.get_operation(operation_id).await?;
-        let mut stream = self.notifier.subscribe(operation_id).await;
-
-        // TODO: Do we need to use `outcome_or_updates` here?
-        // I'm using it here because the LNv2 client does.
-        Ok(self.client_ctx.outcome_or_updates(&operation, operation_id, || {
-            stream! {
-                loop {
-                    if let Some(LightningClientStateMachines::RemoteReceive(state)) = stream.next().await {
-                        match state.state {
-                            RemoteReceiveSMState::Pending => continue,
-                            RemoteReceiveSMState::Funded => {
-                                yield FinalRemoteReceiveOperationState::Funded;
-                                return;
-                            },
-                            RemoteReceiveSMState::Expired => {
-                                yield FinalRemoteReceiveOperationState::Expired;
-                                return;
-                            },
-                        }
-                    }
-                }
-            }
-        }).into_stream().next().await.expect("Stream contains one final state"))
     }
 }
 

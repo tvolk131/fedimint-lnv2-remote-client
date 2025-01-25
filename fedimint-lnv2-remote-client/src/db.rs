@@ -6,27 +6,11 @@ use fedimint_lnv2_common::contracts::IncomingContract;
 #[repr(u8)]
 #[derive(Clone, Debug)]
 pub enum DbKeyPrefix {
-    Claimer = 0xb1,
-    RemoteReceivedContracts = 0xb2,
+    RemoteReceivedContracts = 0xb1,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct ClaimerKey(pub PublicKey); // The pubkey to use to lock contracts to a claimer.
-
-#[derive(Debug, Clone, Encodable, Decodable)]
-pub struct ClaimerKeyPrefix;
-
-impl_db_record!(
-    key = ClaimerKey,
-    value = [u8; 32], // Represents the `iroh::PublicKey` of the claimer.
-    db_prefix = DbKeyPrefix::Claimer,
-);
-impl_db_lookup!(key = ClaimerKey, query_prefix = ClaimerKeyPrefix);
-
-// Represents the `iroh::PublicKey` of the claimer whose claimable contracts
-// we're storing. We should send them the contracts when they request them.
-#[derive(Debug, Clone, Encodable, Decodable)]
-pub struct RemoteReceivedContractsKey(pub [u8; 32]);
+pub struct RemoteReceivedContractsKey(pub PublicKey);
 
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct RemoteReceivedContractsKeyPrefix;
