@@ -295,6 +295,10 @@ impl LightningClientModule {
             )
             .await?;
 
+        let operation_id = self
+            .start_remote_receive_state_machine(contract.clone(), claimer_pk)
+            .await;
+
         self.client_ctx
             .module_db()
             .autocommit(
@@ -315,11 +319,7 @@ impl LightningClientModule {
                 None,
             )
             .await
-            .unwrap();
-
-        let operation_id = self
-            .start_remote_receive_state_machine(contract, claimer_pk)
-            .await;
+            .expect("Autocommit has no retry limit");
 
         Ok((invoice, operation_id))
     }
