@@ -9,7 +9,7 @@ use fedimint_lnv2_common::ContractId;
 use tracing::instrument;
 
 use crate::api::LightningFederationApi;
-use crate::db::RemoteReceivedContractsKey;
+use crate::db::{FundedContractKey, UnfundedContractKey};
 use crate::LightningClientContext;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Decodable, Encodable)]
@@ -63,7 +63,6 @@ impl State for RemoteReceiveStateMachine {
         let gc = global_context.clone();
 
         let contract_id = self.common.contract.contract_id();
-        let claimer_pubkey = self.common.claimer_pubkey;
 
         match &self.state {
             RemoteReceiveSMState::Pending => {
@@ -72,7 +71,6 @@ impl State for RemoteReceiveStateMachine {
                     move |dbtx, contract_confirmed, old_state| {
                         Box::pin(Self::transition_incoming_contract(
                             dbtx,
-                            claimer_pubkey,
                             contract_id,
                             old_state,
                             contract_confirmed,
@@ -105,7 +103,6 @@ impl RemoteReceiveStateMachine {
 
     async fn transition_incoming_contract(
         dbtx: &mut ClientSMDatabaseTransaction<'_, '_>,
-        claimer_pubkey: PublicKey,
         contract_id: ContractId,
         old_state: RemoteReceiveStateMachine,
         contract_confirmed: bool,
@@ -116,31 +113,22 @@ impl RemoteReceiveStateMachine {
             RemoteReceiveSMState::Funded
         };
 
-        // If the contract is stored, update it.
-        let mut unnotified_contracts = dbtx
+        let contract_and_claimer_pubkey = dbtx
             .module_tx()
-            .get_value(&RemoteReceivedContractsKey(claimer_pubkey))
+            .remove_entry(&UnfundedContractKey(contract_id))
             .await
-            .expect("Always contains value if claimer key is registered");
+            .expect("Always contains value if state machine is registered");
 
+        // If the contract is funded, move it to the funded state.
+        // Otherwise, if the contract is expired, remove it from the database.
         if final_state == RemoteReceiveSMState::Funded {
-            // Mark the contract as funded.
-            for unnotified_contract in &mut unnotified_contracts {
-                if unnotified_contract.contract.contract_id() == contract_id {
-                    unnotified_contract.is_funded = true;
-                }
-            }
-        } else {
-            // Remove the contract if it expired.
-            unnotified_contracts.retain(|c| c.contract.contract_id() != contract_id);
+            dbtx.module_tx()
+                .insert_entry(
+                    &FundedContractKey(contract_id),
+                    &contract_and_claimer_pubkey,
+                )
+                .await;
         }
-
-        dbtx.module_tx()
-            .insert_entry(
-                &RemoteReceivedContractsKey(claimer_pubkey),
-                &unnotified_contracts,
-            )
-            .await;
 
         old_state.update(final_state)
     }

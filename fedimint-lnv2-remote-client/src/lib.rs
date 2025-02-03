@@ -16,7 +16,9 @@ use std::sync::Arc;
 use async_stream::stream;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1;
-use db::{RemoteReceiveContractNotification, RemoteReceivedContractsKey};
+use db::{
+    ContractAndClaimerPubkey, FundedContractKey, FundedContractKeyPrefix, UnfundedContractKey,
+};
 use fedimint_api_client::api::DynModuleApi;
 use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client::module::recovery::NoModuleBackup;
@@ -52,7 +54,6 @@ use rand::thread_rng;
 use secp256k1::{ecdh, Keypair, PublicKey, Scalar};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::Mutex;
 use tpe::{derive_agg_decryption_key, AggregateDecryptionKey};
 
 use crate::api::LightningFederationApi;
@@ -159,11 +160,6 @@ pub struct LightningClientModule {
     gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
     #[allow(unused)] // The field is only used by the cli feature
     admin_auth: Option<ApiAuth>,
-    // Lock to ensure that only one db write operation is performed at a time
-    // This is important since we store a list of received contracts in the db
-    // and we need to ensure that modifications to this list don't step on each
-    // other.
-    db_write_lock: Mutex<()>,
 }
 
 #[apply(async_trait_maybe_send!)]
@@ -232,7 +228,6 @@ impl LightningClientModule {
             keypair,
             gateway_conn,
             admin_auth,
-            db_write_lock: Mutex::new(()),
         }
     }
 
@@ -300,26 +295,19 @@ impl LightningClientModule {
             )
             .await?;
 
-        let db_write_lock_handle = self.db_write_lock.lock().await;
-
         self.client_ctx
             .module_db()
             .autocommit(
                 |dbtx, _| {
                     Box::pin(async {
-                        let key = RemoteReceivedContractsKey(claimer_pk);
-
-                        let contract_notification = RemoteReceiveContractNotification {
-                            contract: contract.clone(),
-                            is_funded: false,
-                        };
-
-                        let mut contract_notifications =
-                            dbtx.get_value(&key).await.unwrap_or_default();
-
-                        contract_notifications.push(contract_notification);
-
-                        dbtx.insert_entry(&key, &contract_notifications).await;
+                        dbtx.insert_new_entry(
+                            &UnfundedContractKey(contract.contract_id()),
+                            &ContractAndClaimerPubkey {
+                                contract: contract.clone(),
+                                claimer_pk,
+                            },
+                        )
+                        .await;
 
                         Ok::<(), ()>(())
                     })
@@ -328,8 +316,6 @@ impl LightningClientModule {
             )
             .await
             .unwrap();
-
-        drop(db_write_lock_handle);
 
         let operation_id = self
             .start_remote_receive_state_machine(contract, claimer_pk)
@@ -372,44 +358,41 @@ impl LightningClientModule {
     }
 
     /// Call this on a remote receiver to get a list of claimable contracts.
+    /// TODO: Allow for a limit to be specified.
     pub async fn get_claimable_contracts(&self, claimer_pk: PublicKey) -> Vec<IncomingContract> {
         let mut dbtx = self.client_ctx.module_db().begin_transaction_nc().await;
 
-        dbtx.get_value(&RemoteReceivedContractsKey(claimer_pk))
+        dbtx.find_by_prefix(&FundedContractKeyPrefix)
             .await
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|c| if c.is_funded { Some(c.contract) } else { None })
-            .collect()
+            .filter_map(|c| async move {
+                if &c.1.claimer_pk == &claimer_pk {
+                    Some(c.1.contract)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .await
     }
 
     /// Idempotently remove a list of received contracts.
     /// Call this on a remote receiver after receiving verification
     /// from the claimer that the contract has been claimed.
-    pub async fn remove_claimed_contracts(
-        &self,
-        claimer_pk: PublicKey,
-        contract_ids: Vec<ContractId>,
-    ) {
-        let db_write_lock_handle = self.db_write_lock.lock().await;
-
+    pub async fn remove_claimed_contracts(&self, contract_ids: Vec<ContractId>) {
         self.client_ctx
             .module_db()
             .autocommit(
                 |dbtx, _| {
                     Box::pin(async {
-                        let key = RemoteReceivedContractsKey(claimer_pk);
+                        for contract_id in &contract_ids {
+                            debug_assert!(
+                                dbtx.get_value(&UnfundedContractKey(*contract_id))
+                                    .await
+                                    .is_none(),
+                                "Should never have access to IDs of unclaimed contracts"
+                            );
 
-                        if let Some(mut contract_notifications) = dbtx.get_value(&key).await {
-                            contract_notifications
-                                .retain(|c| !contract_ids.contains(&c.contract.contract_id()));
-
-                            // Update or remove the entry.
-                            if contract_notifications.is_empty() {
-                                dbtx.remove_entry(&key).await;
-                            } else {
-                                dbtx.insert_entry(&key, &contract_notifications).await;
-                            }
+                            dbtx.remove_entry(&FundedContractKey(*contract_id)).await;
                         }
 
                         Ok::<(), ()>(())
@@ -419,8 +402,6 @@ impl LightningClientModule {
             )
             .await
             .expect("Autocommit has no retry limit");
-
-        drop(db_write_lock_handle);
     }
 
     pub async fn claim_contract(&self, contract: IncomingContract) -> anyhow::Result<()> {

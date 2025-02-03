@@ -35,7 +35,6 @@ enum Opts {
         claimer_pk: PublicKey,
     },
     RemoveClaimedContract {
-        claimer_pk: PublicKey,
         #[arg(long)]
         contract_id: sha256::Hash,
     },
@@ -92,12 +91,9 @@ pub(crate) async fn handle_cli_command(
                 })
                 .collect::<Vec<_>>(),
         ),
-        Opts::RemoveClaimedContract {
-            claimer_pk,
-            contract_id,
-        } => json(
+        Opts::RemoveClaimedContract { contract_id } => json(
             lightning
-                .remove_claimed_contracts(claimer_pk, vec![ContractId(contract_id)])
+                .remove_claimed_contracts(vec![ContractId(contract_id)])
                 .await,
         ),
         Opts::ClaimContract {

@@ -100,12 +100,7 @@ async fn test_happy_path(
     let incoming_contract: IncomingContract =
         bincode::deserialize(&hex::decode(incoming_contract_hex).unwrap()).unwrap();
 
-    remove_claimed_contract(
-        &receiver_client,
-        claimer_pk,
-        incoming_contract.contract_id(),
-    )
-    .await?;
+    remove_claimed_contract(&receiver_client, incoming_contract.contract_id()).await?;
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
     assert!(claimable_contracts.is_empty());
@@ -166,12 +161,7 @@ async fn test_syncing_many_payments(
 
         // TODO: Test removing contracts in bulk. This needs to be piped through the
         // CLI.
-        remove_claimed_contract(
-            &receiver_client,
-            claimer_pk,
-            incoming_contract.contract_id(),
-        )
-        .await?;
+        remove_claimed_contract(&receiver_client, incoming_contract.contract_id()).await?;
     }
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
@@ -298,17 +288,12 @@ async fn get_claimable_contracts(
     )?)
 }
 
-async fn remove_claimed_contract(
-    client: &Client,
-    claimer_pk: PublicKey,
-    contract_id: ContractId,
-) -> anyhow::Result<()> {
+async fn remove_claimed_contract(client: &Client, contract_id: ContractId) -> anyhow::Result<()> {
     Ok(cmd!(
         client,
         "module",
         "lnv2",
         "remove-claimed-contract",
-        claimer_pk,
         "--contract-id",
         contract_id.0
     )
