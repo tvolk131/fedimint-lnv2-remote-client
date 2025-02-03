@@ -113,21 +113,26 @@ impl RemoteReceiveStateMachine {
             RemoteReceiveSMState::Funded
         };
 
-        let contract_and_claimer_pubkey = dbtx
+        let contract_and_claimer_pubkey_or = dbtx
             .module_tx()
             .remove_entry(&UnfundedContractKey(contract_id))
-            .await
-            .expect("Always contains value if state machine is registered");
+            .await;
 
-        // If the contract is funded, move it to the funded state.
-        // Otherwise, if the contract is expired, remove it from the database.
-        if final_state == RemoteReceiveSMState::Funded {
-            dbtx.module_tx()
-                .insert_entry(
-                    &FundedContractKey(contract_id),
-                    &contract_and_claimer_pubkey,
-                )
-                .await;
+        // It's possible for `contract_and_claimer_pubkey_or` to be `None` if there was
+        // a failure between starting the state machine and saving the contract,
+        // since the two operations happen back-to-back but in separate
+        // transactions.
+        if let Some(contract_and_claimer_pubkey) = contract_and_claimer_pubkey_or {
+            // If the contract is funded, move it to the funded state.
+            // Otherwise, the contract is expired and we can remove it from the database.
+            if final_state == RemoteReceiveSMState::Funded {
+                dbtx.module_tx()
+                    .insert_entry(
+                        &FundedContractKey(contract_id),
+                        &contract_and_claimer_pubkey,
+                    )
+                    .await;
+            }
         }
 
         old_state.update(final_state)
