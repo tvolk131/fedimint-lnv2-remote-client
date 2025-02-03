@@ -301,35 +301,34 @@ impl LightningClientModule {
             .await?;
 
         let db_write_lock_handle = self.db_write_lock.lock().await;
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
 
-        if let Some(mut contract_notifications) = dbtx
-            .get_value(&RemoteReceivedContractsKey(claimer_pk))
+        self.client_ctx
+            .module_db()
+            .autocommit(
+                |dbtx, _| {
+                    Box::pin(async {
+                        let key = RemoteReceivedContractsKey(claimer_pk);
+
+                        let contract_notification = RemoteReceiveContractNotification {
+                            contract: contract.clone(),
+                            is_funded: false,
+                        };
+
+                        let mut contract_notifications =
+                            dbtx.get_value(&key).await.unwrap_or_default();
+
+                        contract_notifications.push(contract_notification);
+
+                        dbtx.insert_entry(&key, &contract_notifications).await;
+
+                        Ok::<(), ()>(())
+                    })
+                },
+                None,
+            )
             .await
-        {
-            contract_notifications.push(RemoteReceiveContractNotification {
-                contract: contract.clone(),
-                is_funded: false,
-            });
+            .unwrap();
 
-            dbtx.insert_entry(
-                &RemoteReceivedContractsKey(claimer_pk),
-                &contract_notifications,
-            )
-            .await;
-        } else {
-            dbtx.insert_entry(
-                &RemoteReceivedContractsKey(claimer_pk),
-                &vec![RemoteReceiveContractNotification {
-                    contract: contract.clone(),
-                    is_funded: false,
-                }],
-            )
-            .await;
-        }
-
-        // Should never fail since we have the write lock.
-        dbtx.commit_tx().await;
         drop(db_write_lock_handle);
 
         let operation_id = self
@@ -392,18 +391,35 @@ impl LightningClientModule {
         claimer_pk: PublicKey,
         contract_ids: Vec<ContractId>,
     ) {
-        let key = RemoteReceivedContractsKey(claimer_pk);
-
         let db_write_lock_handle = self.db_write_lock.lock().await;
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
 
-        if let Some(mut contract_notifications) = dbtx.get_value(&key).await {
-            contract_notifications.retain(|c| !contract_ids.contains(&c.contract.contract_id()));
-            dbtx.insert_entry(&key, &contract_notifications).await;
-        }
+        self.client_ctx
+            .module_db()
+            .autocommit(
+                |dbtx, _| {
+                    Box::pin(async {
+                        let key = RemoteReceivedContractsKey(claimer_pk);
 
-        // Should never fail since we have the write lock.
-        dbtx.commit_tx().await;
+                        if let Some(mut contract_notifications) = dbtx.get_value(&key).await {
+                            contract_notifications
+                                .retain(|c| !contract_ids.contains(&c.contract.contract_id()));
+
+                            // Update or remove the entry.
+                            if contract_notifications.is_empty() {
+                                dbtx.remove_entry(&key).await;
+                            } else {
+                                dbtx.insert_entry(&key, &contract_notifications).await;
+                            }
+                        }
+
+                        Ok::<(), ()>(())
+                    })
+                },
+                None,
+            )
+            .await
+            .expect("Autocommit has no retry limit");
+
         drop(db_write_lock_handle);
     }
 
