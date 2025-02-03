@@ -33,7 +33,6 @@ use fedimint_core::module::{
     ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion, ModuleInit,
     MultiApiVersion,
 };
-use fedimint_core::task::TaskGroup;
 use fedimint_core::time::duration_since_epoch;
 use fedimint_core::util::SafeUrl;
 use fedimint_core::{apply, async_trait_maybe_send, Amount};
@@ -137,7 +136,6 @@ impl ClientModuleInit for LightningRemoteClientInit {
                 .to_secp_key(fedimint_core::secp256k1::SECP256K1),
             self.gateway_conn.clone(),
             args.admin_auth().cloned(),
-            args.task_group().clone(),
         )
         .await)
     }
@@ -161,7 +159,6 @@ pub struct LightningClientModule {
     gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
     #[allow(unused)] // The field is only used by the cli feature
     admin_auth: Option<ApiAuth>,
-    task_group: TaskGroup,
     // Lock to ensure that only one db write operation is performed at a time
     // This is important since we store a list of received contracts in the db
     // and we need to ensure that modifications to this list don't step on each
@@ -225,7 +222,6 @@ impl LightningClientModule {
         keypair: Keypair,
         gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
         admin_auth: Option<ApiAuth>,
-        task_group: TaskGroup,
     ) -> Self {
         Self {
             federation_id,
@@ -236,7 +232,6 @@ impl LightningClientModule {
             keypair,
             gateway_conn,
             admin_auth,
-            task_group,
             db_write_lock: Mutex::new(()),
         }
     }
