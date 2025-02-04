@@ -78,7 +78,7 @@ async fn test_happy_path(
     )
     .await?;
 
-    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert!(claimable_contracts.is_empty());
 
     dev_fed
@@ -91,7 +91,7 @@ async fn test_happy_path(
 
     await_remote_receive(&receiver_client, operation_id).await?;
 
-    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), 1);
     let incoming_contract_hex = claimable_contracts[0].clone();
 
@@ -102,7 +102,7 @@ async fn test_happy_path(
 
     remove_claimed_contract(&receiver_client, incoming_contract.contract_id()).await?;
 
-    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert!(claimable_contracts.is_empty());
 
     assert_eq!(claimer_client.balance().await.unwrap(), 943_055);
@@ -133,8 +133,19 @@ async fn test_syncing_many_payments(
         );
     }
 
-    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
-    assert!(claimable_contracts.is_empty());
+    assert!(get_claimable_contracts(&receiver_client, claimer_pk, None)
+        .await?
+        .is_empty());
+    assert!(
+        get_claimable_contracts(&receiver_client, claimer_pk, Some(0))
+            .await?
+            .is_empty()
+    );
+    assert!(
+        get_claimable_contracts(&receiver_client, claimer_pk, Some(10))
+            .await?
+            .is_empty()
+    );
 
     for (invoice, _operation_id) in &invoices {
         dev_fed
@@ -150,7 +161,20 @@ async fn test_syncing_many_payments(
         await_remote_receive(&receiver_client, operation_id).await?;
     }
 
-    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
+    assert_eq!(
+        get_claimable_contracts(&receiver_client, claimer_pk, Some(INVOICES_COUNT - 1))
+            .await?
+            .len(),
+        INVOICES_COUNT - 1
+    );
+    assert_eq!(
+        get_claimable_contracts(&receiver_client, claimer_pk, Some(INVOICES_COUNT + 1))
+            .await?
+            .len(),
+        INVOICES_COUNT
+    );
+
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), INVOICES_COUNT);
 
     for i in 0..INVOICES_COUNT {
@@ -164,7 +188,7 @@ async fn test_syncing_many_payments(
         remove_claimed_contract(&receiver_client, incoming_contract.contract_id()).await?;
     }
 
-    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert!(claimable_contracts.is_empty());
 
     assert_eq!(
@@ -201,7 +225,7 @@ async fn test_claim_idempotency(
 
     await_remote_receive(&receiver_client, operation_id).await?;
 
-    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk).await?;
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), 1);
     let incoming_contract_hex = claimable_contracts[0].clone();
 
@@ -274,8 +298,21 @@ async fn await_remote_receive(client: &Client, operation_id: OperationId) -> any
 async fn get_claimable_contracts(
     client: &Client,
     claimer_pk: PublicKey,
+    limit_or: Option<usize>,
 ) -> anyhow::Result<Vec<String>> {
-    Ok(serde_json::from_value(
+    let json_value = if let Some(limit) = limit_or {
+        cmd!(
+            client,
+            "module",
+            "lnv2",
+            "get-claimable-contracts",
+            claimer_pk,
+            "--limit",
+            limit
+        )
+        .out_json()
+        .await?
+    } else {
         cmd!(
             client,
             "module",
@@ -284,8 +321,10 @@ async fn get_claimable_contracts(
             claimer_pk
         )
         .out_json()
-        .await?,
-    )?)
+        .await?
+    };
+
+    Ok(serde_json::from_value(json_value)?)
 }
 
 async fn remove_claimed_contract(client: &Client, contract_id: ContractId) -> anyhow::Result<()> {

@@ -33,6 +33,8 @@ enum Opts {
     },
     GetClaimableContracts {
         claimer_pk: PublicKey,
+        #[arg(long)]
+        limit: Option<usize>,
     },
     RemoveClaimedContract {
         #[arg(long)]
@@ -81,9 +83,9 @@ pub(crate) async fn handle_cli_command(
         Opts::AwaitRemoteReceive { operation_id } => {
             json(lightning.await_remote_receive(operation_id).await?)
         }
-        Opts::GetClaimableContracts { claimer_pk } => json(
+        Opts::GetClaimableContracts { claimer_pk, limit } => json(
             lightning
-                .get_claimable_contracts(claimer_pk)
+                .get_claimable_contracts(claimer_pk, limit)
                 .await
                 .into_iter()
                 .map(|incoming_contract| {

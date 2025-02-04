@@ -358,11 +358,15 @@ impl LightningClientModule {
     }
 
     /// Call this on a remote receiver to get a list of claimable contracts.
-    /// TODO: Allow for a limit to be specified.
-    pub async fn get_claimable_contracts(&self, claimer_pk: PublicKey) -> Vec<IncomingContract> {
+    pub async fn get_claimable_contracts(
+        &self,
+        claimer_pk: PublicKey,
+        limit_or: Option<usize>,
+    ) -> Vec<IncomingContract> {
         let mut dbtx = self.client_ctx.module_db().begin_transaction_nc().await;
 
-        dbtx.find_by_prefix(&FundedContractKeyPrefix)
+        let contract_stream = dbtx
+            .find_by_prefix(&FundedContractKeyPrefix)
             .await
             .filter_map(|c| async move {
                 if &c.1.claimer_pk == &claimer_pk {
@@ -370,9 +374,13 @@ impl LightningClientModule {
                 } else {
                     None
                 }
-            })
-            .collect::<Vec<_>>()
-            .await
+            });
+
+        if let Some(limit) = limit_or {
+            contract_stream.take(limit).collect::<Vec<_>>().await
+        } else {
+            contract_stream.collect::<Vec<_>>().await
+        }
     }
 
     /// Idempotently remove a list of received contracts.
@@ -541,8 +549,8 @@ impl LightningClientModule {
         Ok((invoice, contract))
     }
 
-    /// Start a remote receive state machine that
-    /// waits for an incoming contract to be funded.
+    /// Start a remote receive state machine that waits
+    /// for an incoming contract to be funded or to expire.
     async fn start_remote_receive_state_machine(
         &self,
         contract: IncomingContract,
