@@ -385,7 +385,7 @@ impl LightningClientModule {
 
     /// Idempotently remove a list of received contracts.
     /// Call this on a remote receiver after receiving verification
-    /// from the claimer that the contract has been claimed.
+    /// from the claimer that the contracts have been claimed.
     pub async fn remove_claimed_contracts(&self, contract_ids: Vec<ContractId>) {
         self.client_ctx
             .module_db()
