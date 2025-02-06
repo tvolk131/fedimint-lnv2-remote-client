@@ -46,8 +46,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-        info!("Testing claim idempotency");
-        test_claim_idempotency(
+        info!("Testing idempotency");
+        test_idempotency(
             &dev_fed,
             fed.new_joined_client("client4").await?,
             fed.new_joined_client("client5").await?,
@@ -199,7 +199,8 @@ async fn test_syncing_many_payments(
     Ok(())
 }
 
-async fn test_claim_idempotency(
+// TODO: Test idempotency of entire client API.
+async fn test_idempotency(
     dev_fed: &DevJitFed,
     receiver_client: Client,
     claimer_client: Client,
@@ -223,7 +224,9 @@ async fn test_claim_idempotency(
         .await
         .unwrap();
 
-    await_remote_receive(&receiver_client, operation_id).await?;
+    for _ in 0..20 {
+        await_remote_receive(&receiver_client, operation_id).await?;
+    }
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), 1);
