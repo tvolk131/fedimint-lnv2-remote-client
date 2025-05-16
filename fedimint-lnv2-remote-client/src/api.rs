@@ -80,7 +80,6 @@ where
     async fn gateways_from_peer(&self, peer: PeerId) -> PeerResult<Vec<SafeUrl>> {
         let value = self
             .request_single_peer(
-                None,
                 GATEWAYS_ENDPOINT.to_string(),
                 ApiRequestErased::default(),
                 peer,

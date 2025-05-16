@@ -19,14 +19,20 @@ async fn main() -> anyhow::Result<()> {
         fed.pegin_gateways(
             1_000_000,
             vec![
-                dev_fed.gw_cln().await.unwrap(),
                 dev_fed.gw_lnd().await.unwrap(),
                 dev_fed.gw_ldk().await.unwrap().as_ref().unwrap(),
             ],
         )
         .await?;
 
-        let ldk_gw_addr = dev_fed.gw_cln().await.as_ref().unwrap().addr.clone();
+        let ldk_gw_addr = dev_fed
+            .gw_ldk()
+            .await
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .addr
+            .clone();
 
         info!("Testing happy path");
         test_happy_path(
