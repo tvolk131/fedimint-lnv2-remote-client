@@ -54,7 +54,7 @@ use rand::thread_rng;
 use secp256k1::{ecdh, Keypair, PublicKey, Scalar};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tpe::{derive_agg_decryption_key, AggregateDecryptionKey};
+use tpe::{derive_agg_dk, AggregateDecryptionKey};
 
 use crate::api::LightningFederationApi;
 use crate::remote_receive_sm::{
@@ -429,7 +429,7 @@ impl LightningClientModule {
 
         let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
 
-        let (_txid, change_range) = self
+        let change_range = self
             .client_ctx
             .claim_inputs(
                 &mut dbtx.to_ref_nc(),
@@ -450,7 +450,7 @@ impl LightningClientModule {
         // 2. Store a list of claimed contracts in the module db
         let _ = self
             .client_ctx
-            .await_primary_module_outputs(operation_id, change_range)
+            .await_primary_module_outputs(operation_id, change_range.into_iter().collect())
             .await;
 
         Ok(())
@@ -607,7 +607,7 @@ impl LightningClientModule {
             return None; // The claim key is not derived from our pk
         }
 
-        let agg_decryption_key = derive_agg_decryption_key(&self.cfg.tpe_agg_pk, &encryption_seed);
+        let agg_decryption_key = derive_agg_dk(&self.cfg.tpe_agg_pk, &encryption_seed);
 
         if !contract.verify_agg_decryption_key(&self.cfg.tpe_agg_pk, &agg_decryption_key) {
             return None; // The decryption key is not derived from our pk
