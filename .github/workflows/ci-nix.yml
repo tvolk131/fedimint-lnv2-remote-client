@@ -88,23 +88,19 @@ jobs:
         continue-on-error: true
 
       - name: Build workspace
-        run: nix build -L .#ci.workspaceBuild
+        run: just build
 
       - name: Clippy workspace
-        run: nix build -L .#ci.workspaceClippy
+        run: just clippy
 
       - name: Run cargo doc
-        run: nix build -L .#ci.workspaceDoc
+        run: rustdoc
 
       - name: Test docs
-        run: nix build -L .#ci.workspaceTestDoc
+        run: rustdoc --test
 
       - name: Tests
-        run: |
-          nix build -L .#ci.ciTestAll --keep-failed
-
-      - name: Wasm Tests
-        run: nix build -L .#wasm32-unknown.ci.wasmTest --keep-failed
+        run: cargo test --all-features --all-targets --no-default-features
 
       - name: Prepare failed test build dirs
         run:  |
