@@ -14,19 +14,17 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use async_stream::stream;
-use bitcoin::hashes::{sha256, Hash};
+use bitcoin::hashes::{Hash, sha256};
 use bitcoin::secp256k1;
-use db::{
-    ContractAndClaimerPubkey, FundedContractKey, FundedContractKeyPrefix, UnfundedContractKey,
-};
+use db::{FundedContractKey, FundedContractKeyPrefix, UnfundedContractInfo, UnfundedContractKey};
 use fedimint_api_client::api::DynModuleApi;
-use fedimint_client::module::init::{ClientModuleInit, ClientModuleInitArgs};
-use fedimint_client::module::recovery::NoModuleBackup;
-use fedimint_client::module::{ClientContext, ClientModule};
-use fedimint_client::sm::util::MapStateTransitions;
-use fedimint_client::sm::{Context, DynState, ModuleNotifier, State, StateTransition};
-use fedimint_client::transaction::{ClientInput, ClientInputBundle};
-use fedimint_client::{sm_enum_variant_translation, DynGlobalClientContext};
+use fedimint_client_module::module::init::{ClientModuleInit, ClientModuleInitArgs};
+use fedimint_client_module::module::recovery::NoModuleBackup;
+use fedimint_client_module::module::{ClientContext, ClientModule};
+use fedimint_client_module::sm::util::MapStateTransitions;
+use fedimint_client_module::sm::{Context, DynState, ModuleNotifier, State, StateTransition};
+use fedimint_client_module::transaction::{ClientInput, ClientInputBundle};
+use fedimint_client_module::{DynGlobalClientContext, sm_enum_variant_translation};
 use fedimint_core::config::FederationId;
 use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
@@ -37,7 +35,7 @@ use fedimint_core::module::{
 };
 use fedimint_core::time::duration_since_epoch;
 use fedimint_core::util::SafeUrl;
-use fedimint_core::{apply, async_trait_maybe_send, Amount};
+use fedimint_core::{Amount, OutPoint, apply, async_trait_maybe_send};
 use fedimint_lnv2_common::config::LightningClientConfig;
 use fedimint_lnv2_common::contracts::{IncomingContract, PaymentImage};
 use fedimint_lnv2_common::gateway_api::{
@@ -51,10 +49,10 @@ use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
-use secp256k1::{ecdh, Keypair, PublicKey, Scalar};
+use secp256k1::{Keypair, PublicKey, Scalar, ecdh};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tpe::{derive_agg_dk, AggregateDecryptionKey};
+use tpe::{AggregateDecryptionKey, derive_agg_dk};
 
 use crate::api::LightningFederationApi;
 use crate::remote_receive_sm::{
@@ -62,6 +60,12 @@ use crate::remote_receive_sm::{
 };
 
 const KIND: ModuleKind = ModuleKind::from_static_str("lnv2");
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClaimableContract {
+    pub contract: IncomingContract,
+    pub outpoint: OutPoint,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationMeta {
@@ -137,8 +141,7 @@ impl ClientModuleInit for LightningRemoteClientInit {
                 .to_secp_key(fedimint_core::secp256k1::SECP256K1),
             self.gateway_conn.clone(),
             args.admin_auth().cloned(),
-        )
-        .await)
+        ))
     }
 }
 
@@ -209,7 +212,7 @@ fn generate_ephemeral_tweak(static_pk: PublicKey) -> ([u8; 32], PublicKey) {
 
 impl LightningClientModule {
     #[allow(clippy::too_many_arguments)]
-    async fn new(
+    fn new(
         federation_id: FederationId,
         cfg: LightningClientConfig,
         notifier: ModuleNotifier<LightningClientStateMachines>,
@@ -306,7 +309,7 @@ impl LightningClientModule {
                     Box::pin(async {
                         dbtx.insert_new_entry(
                             &UnfundedContractKey(contract.contract_id()),
-                            &ContractAndClaimerPubkey {
+                            &UnfundedContractInfo {
                                 contract: contract.clone(),
                                 claimer_pk,
                             },
@@ -336,7 +339,7 @@ impl LightningClientModule {
 
         // TODO: Do we need to use `outcome_or_updates` here?
         // I'm using it here because the LNv2 client does.
-        Ok(self.client_ctx.outcome_or_updates(&operation, operation_id, || {
+        Ok(self.client_ctx.outcome_or_updates(operation, operation_id, || {
             stream! {
                 loop {
                     if let Some(LightningClientStateMachines::RemoteReceive(state)) = stream.next().await {
@@ -362,15 +365,18 @@ impl LightningClientModule {
         &self,
         claimer_pk: PublicKey,
         limit_or: Option<usize>,
-    ) -> Vec<IncomingContract> {
+    ) -> Vec<ClaimableContract> {
         let mut dbtx = self.client_ctx.module_db().begin_transaction_nc().await;
 
         let contract_stream = dbtx
             .find_by_prefix(&FundedContractKeyPrefix)
             .await
             .filter_map(|c| async move {
-                if &c.1.claimer_pk == &claimer_pk {
-                    Some(c.1.contract)
+                if c.1.claimer_pk == claimer_pk {
+                    Some(ClaimableContract {
+                        contract: c.1.contract,
+                        outpoint: c.1.outpoint,
+                    })
                 } else {
                     None
                 }
@@ -412,18 +418,23 @@ impl LightningClientModule {
             .expect("Autocommit has no retry limit");
     }
 
-    pub async fn claim_contract(&self, contract: IncomingContract) -> anyhow::Result<()> {
-        let operation_id = OperationId::from_encodable(&contract.clone());
+    pub async fn claim_contract(
+        &self,
+        claimable_contract: ClaimableContract,
+    ) -> anyhow::Result<()> {
+        let operation_id = OperationId::from_encodable(&claimable_contract.contract);
 
         // TODO: Don't unwrap here.
-        let (claim_keypair, agg_decryption_key) = self.recover_contract_keys(&contract).unwrap();
+        let (claim_keypair, agg_decryption_key) = self
+            .recover_contract_keys(&claimable_contract.contract)
+            .unwrap();
 
         let client_input = ClientInput::<LightningInput> {
             input: LightningInput::V0(LightningInputV0::Incoming(
-                contract.contract_id(),
+                claimable_contract.outpoint,
                 agg_decryption_key,
             )),
-            amount: contract.commitment.amount,
+            amount: claimable_contract.contract.commitment.amount,
             keys: vec![claim_keypair],
         };
 

@@ -1,8 +1,8 @@
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::secp256k1::PublicKey;
-use fedimint_core::{impl_db_lookup, impl_db_record};
-use fedimint_lnv2_common::contracts::IncomingContract;
+use fedimint_core::{OutPoint, impl_db_lookup, impl_db_record};
 use fedimint_lnv2_common::ContractId;
+use fedimint_lnv2_common::contracts::IncomingContract;
 
 #[repr(u8)]
 #[derive(Clone, Debug)]
@@ -19,13 +19,19 @@ pub struct UnfundedContractKeyPrefix;
 
 impl_db_record!(
     key = UnfundedContractKey,
-    value = ContractAndClaimerPubkey,
+    value = UnfundedContractInfo,
     db_prefix = DbKeyPrefix::UnfundedContract,
 );
 impl_db_lookup!(
     key = UnfundedContractKey,
     query_prefix = UnfundedContractKeyPrefix
 );
+
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub struct UnfundedContractInfo {
+    pub contract: IncomingContract,
+    pub claimer_pk: PublicKey,
+}
 
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct FundedContractKey(pub ContractId);
@@ -35,7 +41,7 @@ pub struct FundedContractKeyPrefix;
 
 impl_db_record!(
     key = FundedContractKey,
-    value = ContractAndClaimerPubkey,
+    value = FundedContractInfo,
     db_prefix = DbKeyPrefix::FundedContract,
 );
 impl_db_lookup!(
@@ -44,7 +50,8 @@ impl_db_lookup!(
 );
 
 #[derive(Debug, Clone, Encodable, Decodable)]
-pub struct ContractAndClaimerPubkey {
+pub struct FundedContractInfo {
     pub contract: IncomingContract,
     pub claimer_pk: PublicKey,
+    pub outpoint: OutPoint,
 }

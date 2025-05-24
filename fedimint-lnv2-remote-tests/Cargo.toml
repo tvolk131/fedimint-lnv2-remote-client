@@ -2,7 +2,7 @@
 name = "fedimint-lnv2-remote-tests"
 version = "0.0.1"
 authors = ["tvolk131"]
-edition = "2021"
+edition = "2024"
 description = "A federated remote lightning receive client."
 license = "MIT"
 publish = false
@@ -22,6 +22,6 @@ tracing = { workspace = true }
 tokio = { workspace = true }
 lightning-invoice = { workspace = true }
 substring = "1.4.5"
-fedimint-client = "0.6.0"
+fedimint-client = "0.7.2"
 bincode = "1.3.3"
 hex = { version = "0.4.3" }
