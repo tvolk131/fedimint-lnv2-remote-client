@@ -1,0 +1,25 @@
+{
+  "name": "nix-rust-codespace",
+
+  "features": {
+    "ghcr.io/devcontainers/features/nix:1": {
+      "packages": "direnv"
+    }
+  },
+
+  "postCreateCommand": "cachix use fedimint && nix develop --command just setup",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "nixEnvSelector.nixFile": "flake.nix",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "arrterian.nix-env-selector",
+        "tamasfe.even-better-toml",
+        "rust-lang.rust-analyzer"
+      ]
+    }
+  }
+}
