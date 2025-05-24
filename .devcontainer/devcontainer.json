@@ -8,6 +8,10 @@
     }
   },
 
+  "hostRequirements": {
+     "storage": "64gb"
+  },
+
   "postCreateCommand": "cachix use fedimint && nix develop --command just setup",
 
   "customizations": {
