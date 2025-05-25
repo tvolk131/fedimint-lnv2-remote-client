@@ -9,7 +9,9 @@
   },
 
   "hostRequirements": {
-     "storage": "64gb"
+    "cpus": 8,
+    "memory": "32gb",
+    "storage": "64gb"
   },
 
   "onCreateCommand": "cachix use fedimint && nix develop --extra-experimental-features nix-command --extra-experimental-features flakes --command just build",
