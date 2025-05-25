@@ -24,6 +24,8 @@ enum Opts {
         #[arg(long)]
         amount: Amount,
         #[arg(long)]
+        expiry_secs: u32,
+        #[arg(long)]
         gateway: Option<SafeUrl>,
     },
     /// Await the final state of the remote receive operation.
@@ -68,13 +70,14 @@ pub(crate) async fn handle_cli_command(
         Opts::RemoteReceive {
             claimer_pk,
             amount,
+            expiry_secs,
             gateway,
         } => json(
             lightning
                 .remote_receive(
                     claimer_pk,
                     amount,
-                    3600,
+                    expiry_secs,
                     Bolt11InvoiceDescription::Direct(String::new()),
                     gateway,
                 )

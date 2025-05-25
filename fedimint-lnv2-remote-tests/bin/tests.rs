@@ -57,6 +57,15 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
 
+            info!("Testing expired payment");
+            test_expired_payment(
+                &dev_fed,
+                fed.new_joined_client("client6").await?,
+                fed.new_joined_client("client7").await?,
+                &ldk_gw_addr,
+            )
+            .await?;
+
             info!("Successfully completed fedimint-lnv2-remote test");
 
             Ok(())
@@ -73,7 +82,7 @@ async fn test_happy_path(
     let claimer_pk = get_public_key(&claimer_client).await?;
 
     let (invoice, operation_id) =
-        remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, gw_addr).await?;
+        remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, None, gw_addr).await?;
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert!(claimable_contracts.is_empty());
@@ -121,8 +130,9 @@ async fn test_syncing_many_payments(
 
     let mut invoices = Vec::new();
     for _ in 0..INVOICES_COUNT {
-        invoices
-            .push(remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, gw_addr).await?);
+        invoices.push(
+            remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, None, gw_addr).await?,
+        );
     }
 
     assert!(
@@ -203,7 +213,7 @@ async fn test_idempotency(
     let claimer_pk = get_public_key(&claimer_client).await?;
 
     let (invoice, operation_id) =
-        remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, gw_addr).await?;
+        remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, None, gw_addr).await?;
 
     dev_fed
         .lnd()
@@ -235,6 +245,41 @@ async fn test_idempotency(
     Ok(())
 }
 
+async fn test_expired_payment(
+    dev_fed: &DevJitFed,
+    receiver_client: Client,
+    claimer_client: Client,
+    gw_addr: &str,
+) -> anyhow::Result<()> {
+    let claimer_pk = get_public_key(&claimer_client).await?;
+
+    let (invoice, operation_id) = remote_receive(
+        &receiver_client,
+        claimer_pk,
+        &PAYMENT_AMOUNT,
+        Some(2),
+        gw_addr,
+    )
+    .await?;
+
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
+    assert!(claimable_contracts.is_empty());
+
+    await_remote_receive_expire(&receiver_client, operation_id).await?;
+
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
+    assert!(claimable_contracts.is_empty());
+
+    assert_eq!(
+        Amount {
+            msats: claimer_client.balance().await.unwrap()
+        },
+        Amount::ZERO
+    );
+
+    Ok(())
+}
+
 async fn get_public_key(client: &Client) -> anyhow::Result<PublicKey> {
     Ok(serde_json::from_value(
         cmd!(client, "module", "lnv2", "get-public-key")
@@ -247,6 +292,7 @@ async fn remote_receive(
     receiver_client: &Client,
     claimer_pk: PublicKey,
     amount: &Amount,
+    expiry_secs: Option<u32>,
     gateway: &str,
 ) -> anyhow::Result<(Bolt11Invoice, OperationId)> {
     let mut json_result = cmd!(
@@ -257,6 +303,8 @@ async fn remote_receive(
         claimer_pk,
         "--amount",
         amount.to_string(),
+        "--expiry-secs",
+        expiry_secs.unwrap_or(3600),
         "--gateway",
         gateway
     )
@@ -286,6 +334,28 @@ async fn await_remote_receive(client: &Client, operation_id: OperationId) -> any
         .out_json()
         .await?,
         serde_json::to_value(FinalRemoteReceiveOperationState::Funded)
+            .expect("JSON serialization failed"),
+    );
+
+    Ok(())
+}
+
+async fn await_remote_receive_expire(
+    client: &Client,
+    operation_id: OperationId,
+) -> anyhow::Result<()> {
+    assert_eq!(
+        cmd!(
+            client,
+            "module",
+            "lnv2",
+            "await-remote-receive",
+            "--operation-id",
+            serde_json::to_string(&operation_id)?.substring(1, 65)
+        )
+        .out_json()
+        .await?,
+        serde_json::to_value(FinalRemoteReceiveOperationState::Expired)
             .expect("JSON serialization failed"),
     );
 
