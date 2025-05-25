@@ -1,71 +1,67 @@
 use devimint::cmd;
 use devimint::devfed::DevJitFed;
 use devimint::federation::Client;
+use fedimint_core::Amount;
 use fedimint_core::core::OperationId;
 use fedimint_core::secp256k1::PublicKey;
-use fedimint_core::Amount;
-use fedimint_lnv2_common::contracts::IncomingContract;
 use fedimint_lnv2_common::ContractId;
-use fedimint_lnv2_remote_client::FinalRemoteReceiveOperationState;
+use fedimint_lnv2_remote_client::{ClaimableContract, FinalRemoteReceiveOperationState};
 use lightning_invoice::Bolt11Invoice;
 use substring::Substring;
 use tracing::info;
 
+const PAYMENT_AMOUNT: Amount = Amount::from_msats(1_000_000);
+const POST_PAYMENT_AMOUNT: Amount = Amount::from_msats(943_906);
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    devimint::run_devfed_test(|dev_fed, _process_mgr| async move {
-        let fed = dev_fed.fed().await?;
+    devimint::run_devfed_test()
+        .call(|dev_fed, _process_mgr| async move {
+            let fed = dev_fed.fed().await?;
 
-        fed.pegin_gateways(
-            1_000_000,
-            vec![
-                dev_fed.gw_lnd().await.unwrap(),
-                dev_fed.gw_ldk().await.unwrap().as_ref().unwrap(),
-            ],
-        )
-        .await?;
+            fed.pegin_gateways(
+                1_000_000,
+                vec![
+                    dev_fed.gw_lnd().await.unwrap(),
+                    dev_fed.gw_ldk().await.unwrap(),
+                ],
+            )
+            .await?;
 
-        let ldk_gw_addr = dev_fed
-            .gw_ldk()
-            .await
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .addr
-            .clone();
+            let ldk_gw_addr = dev_fed.gw_ldk().await.unwrap().addr.clone();
 
-        info!("Testing happy path");
-        test_happy_path(
-            &dev_fed,
-            fed.new_joined_client("client0").await?,
-            fed.new_joined_client("client1").await?,
-            &ldk_gw_addr,
-        )
-        .await?;
+            info!("Testing happy path");
+            test_happy_path(
+                &dev_fed,
+                fed.new_joined_client("client0").await?,
+                fed.new_joined_client("client1").await?,
+                &ldk_gw_addr,
+            )
+            .await?;
 
-        info!("Testing syncing many payments");
-        test_syncing_many_payments(
-            &dev_fed,
-            fed.new_joined_client("client2").await?,
-            fed.new_joined_client("client3").await?,
-            &ldk_gw_addr,
-        )
-        .await?;
+            info!("Testing syncing many payments");
+            test_syncing_many_payments(
+                &dev_fed,
+                fed.new_joined_client("client2").await?,
+                fed.new_joined_client("client3").await?,
+                &ldk_gw_addr,
+            )
+            .await?;
 
-        info!("Testing idempotency");
-        test_idempotency(
-            &dev_fed,
-            fed.new_joined_client("client4").await?,
-            fed.new_joined_client("client5").await?,
-            &ldk_gw_addr,
-        )
-        .await?;
+            info!("Testing idempotency");
+            test_idempotency(
+                &dev_fed,
+                fed.new_joined_client("client4").await?,
+                fed.new_joined_client("client5").await?,
+                &ldk_gw_addr,
+            )
+            .await?;
 
-        info!("Successfully completed fedimint-lnv2-remote test");
+            info!("Successfully completed fedimint-lnv2-remote test");
 
-        Ok(())
-    })
-    .await
+            Ok(())
+        })
+        .await
 }
 
 async fn test_happy_path(
@@ -76,13 +72,8 @@ async fn test_happy_path(
 ) -> anyhow::Result<()> {
     let claimer_pk = get_public_key(&claimer_client).await?;
 
-    let (invoice, operation_id) = remote_receive(
-        &receiver_client,
-        claimer_pk,
-        &Amount::from_msats(1_000_000),
-        gw_addr,
-    )
-    .await?;
+    let (invoice, operation_id) =
+        remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, gw_addr).await?;
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert!(claimable_contracts.is_empty());
@@ -99,19 +90,21 @@ async fn test_happy_path(
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), 1);
-    let incoming_contract_hex = claimable_contracts[0].clone();
+    let claimable_contract = claimable_contracts[0].clone();
 
-    claim_contract(&claimer_client, &incoming_contract_hex).await?;
+    claim_contract(&claimer_client, &claimable_contract).await?;
 
-    let incoming_contract: IncomingContract =
-        bincode::deserialize(&hex::decode(incoming_contract_hex).unwrap()).unwrap();
-
-    remove_claimed_contract(&receiver_client, incoming_contract.contract_id()).await?;
+    remove_claimed_contract(&receiver_client, claimable_contract.contract.contract_id()).await?;
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert!(claimable_contracts.is_empty());
 
-    assert_eq!(claimer_client.balance().await.unwrap(), 943_055);
+    assert_eq!(
+        Amount {
+            msats: claimer_client.balance().await.unwrap()
+        },
+        POST_PAYMENT_AMOUNT
+    );
 
     Ok(())
 }
@@ -128,20 +121,15 @@ async fn test_syncing_many_payments(
 
     let mut invoices = Vec::new();
     for _ in 0..INVOICES_COUNT {
-        invoices.push(
-            remote_receive(
-                &receiver_client,
-                claimer_pk,
-                &Amount::from_msats(1_000_000),
-                gw_addr,
-            )
-            .await?,
-        );
+        invoices
+            .push(remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, gw_addr).await?);
     }
 
-    assert!(get_claimable_contracts(&receiver_client, claimer_pk, None)
-        .await?
-        .is_empty());
+    assert!(
+        get_claimable_contracts(&receiver_client, claimer_pk, None)
+            .await?
+            .is_empty()
+    );
     assert!(
         get_claimable_contracts(&receiver_client, claimer_pk, Some(0))
             .await?
@@ -183,23 +171,23 @@ async fn test_syncing_many_payments(
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), INVOICES_COUNT);
 
-    for i in 0..INVOICES_COUNT {
-        claim_contract(&claimer_client, &claimable_contracts[i]).await?;
-
-        let incoming_contract: IncomingContract =
-            bincode::deserialize(&hex::decode(&claimable_contracts[i]).unwrap()).unwrap();
+    for claimable_contract in claimable_contracts.iter().take(INVOICES_COUNT) {
+        claim_contract(&claimer_client, claimable_contract).await?;
 
         // TODO: Test removing contracts in bulk. This needs to be piped through the
         // CLI.
-        remove_claimed_contract(&receiver_client, incoming_contract.contract_id()).await?;
+        remove_claimed_contract(&receiver_client, claimable_contract.contract.contract_id())
+            .await?;
     }
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert!(claimable_contracts.is_empty());
 
     assert_eq!(
-        claimer_client.balance().await.unwrap(),
-        943_055 * INVOICES_COUNT as u64
+        Amount {
+            msats: claimer_client.balance().await.unwrap()
+        },
+        POST_PAYMENT_AMOUNT * INVOICES_COUNT as u64
     );
 
     Ok(())
@@ -214,13 +202,8 @@ async fn test_idempotency(
 ) -> anyhow::Result<()> {
     let claimer_pk = get_public_key(&claimer_client).await?;
 
-    let (invoice, operation_id) = remote_receive(
-        &receiver_client,
-        claimer_pk,
-        &Amount::from_msats(1_000_000),
-        gw_addr,
-    )
-    .await?;
+    let (invoice, operation_id) =
+        remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, gw_addr).await?;
 
     dev_fed
         .lnd()
@@ -236,13 +219,18 @@ async fn test_idempotency(
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), 1);
-    let incoming_contract_hex = claimable_contracts[0].clone();
+    let claimable_contract = claimable_contracts[0].clone();
 
     for _ in 0..20 {
-        claim_contract(&claimer_client, &incoming_contract_hex).await?;
+        claim_contract(&claimer_client, &claimable_contract).await?;
     }
 
-    assert_eq!(claimer_client.balance().await.unwrap(), 943_055);
+    assert_eq!(
+        Amount {
+            msats: claimer_client.balance().await.unwrap()
+        },
+        POST_PAYMENT_AMOUNT
+    );
 
     Ok(())
 }
@@ -308,7 +296,7 @@ async fn get_claimable_contracts(
     client: &Client,
     claimer_pk: PublicKey,
     limit_or: Option<usize>,
-) -> anyhow::Result<Vec<String>> {
+) -> anyhow::Result<Vec<ClaimableContract>> {
     let json_value = if let Some(limit) = limit_or {
         cmd!(
             client,
@@ -337,7 +325,7 @@ async fn get_claimable_contracts(
 }
 
 async fn remove_claimed_contract(client: &Client, contract_id: ContractId) -> anyhow::Result<()> {
-    Ok(cmd!(
+    cmd!(
         client,
         "module",
         "lnv2",
@@ -346,17 +334,20 @@ async fn remove_claimed_contract(client: &Client, contract_id: ContractId) -> an
         contract_id.0
     )
     .run()
-    .await?)
+    .await
 }
 
-async fn claim_contract(client: &Client, incoming_contract_hex: &str) -> anyhow::Result<()> {
-    Ok(cmd!(
+async fn claim_contract(
+    client: &Client,
+    claimable_contract: &ClaimableContract,
+) -> anyhow::Result<()> {
+    cmd!(
         client,
         "module",
         "lnv2",
         "claim-contract",
-        incoming_contract_hex
+        hex::encode(bincode::serialize(claimable_contract).unwrap())
     )
     .run()
-    .await?)
+    .await
 }

@@ -1,16 +1,17 @@
-use fedimint_client::sm::{ClientSMDatabaseTransaction, State, StateTransition};
 use fedimint_client::DynGlobalClientContext;
+use fedimint_client_module::sm::{ClientSMDatabaseTransaction, State, StateTransition};
+use fedimint_core::OutPoint;
 use fedimint_core::core::OperationId;
 use fedimint_core::db::IDatabaseTransactionOpsCoreTyped;
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::secp256k1::PublicKey;
-use fedimint_lnv2_common::contracts::IncomingContract;
 use fedimint_lnv2_common::ContractId;
+use fedimint_lnv2_common::contracts::IncomingContract;
 use tracing::instrument;
 
-use crate::api::LightningFederationApi;
-use crate::db::{FundedContractKey, UnfundedContractKey};
 use crate::LightningClientContext;
+use crate::api::LightningFederationApi;
+use crate::db::{FundedContractInfo, FundedContractKey, UnfundedContractKey};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Decodable, Encodable)]
 pub struct RemoteReceiveStateMachine {
@@ -68,12 +69,12 @@ impl State for RemoteReceiveStateMachine {
             RemoteReceiveSMState::Pending => {
                 vec![StateTransition::new(
                     Self::await_incoming_contract(self.common.contract.clone(), gc.clone()),
-                    move |dbtx, contract_confirmed, old_state| {
+                    move |dbtx, contract_outpoint, old_state| {
                         Box::pin(Self::transition_incoming_contract(
                             dbtx,
                             contract_id,
                             old_state,
-                            contract_confirmed,
+                            contract_outpoint,
                         ))
                     },
                 )]
@@ -94,7 +95,7 @@ impl RemoteReceiveStateMachine {
     async fn await_incoming_contract(
         contract: IncomingContract,
         global_context: DynGlobalClientContext,
-    ) -> bool {
+    ) -> Option<OutPoint> {
         global_context
             .module_api()
             .await_incoming_contract(&contract.contract_id(), contract.commitment.expiration)
@@ -105,9 +106,9 @@ impl RemoteReceiveStateMachine {
         dbtx: &mut ClientSMDatabaseTransaction<'_, '_>,
         contract_id: ContractId,
         old_state: RemoteReceiveStateMachine,
-        contract_confirmed: bool,
+        contract_outpoint: Option<OutPoint>,
     ) -> RemoteReceiveStateMachine {
-        let final_state = if !contract_confirmed {
+        let final_state = if contract_outpoint.is_none() {
             RemoteReceiveSMState::Expired
         } else {
             RemoteReceiveSMState::Funded
@@ -129,7 +130,16 @@ impl RemoteReceiveStateMachine {
                 dbtx.module_tx()
                     .insert_entry(
                         &FundedContractKey(contract_id),
-                        &contract_and_claimer_pubkey,
+                        &FundedContractInfo {
+                            contract: contract_and_claimer_pubkey.contract,
+                            claimer_pk: contract_and_claimer_pubkey.claimer_pk,
+                            // TODO: This is always safe since `final_state` is `Funded` only if
+                            // `contract_outpoint` is `Some`.
+                            // But the code guaranteeing this is a bit roundabout. Maybe add the
+                            // `Outpoint` as data to the `Funded` enum
+                            // variant of `RemoteReceiveSMState`?
+                            outpoint: contract_outpoint.unwrap(),
+                        },
                     )
                     .await;
             }
