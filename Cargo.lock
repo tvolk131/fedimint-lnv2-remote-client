@@ -2957,7 +2957,7 @@ dependencies = [
 
 [[package]]
 name = "fedimint-lnv2-remote-client"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2984,7 +2984,7 @@ dependencies = [
 
 [[package]]
 name = "fedimint-lnv2-remote-tests"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "bincode",
@@ -7546,7 +7546,7 @@ dependencies = [
 
 [[package]]
 name = "roastr"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "fedimint-build 0.4.0-alpha",
@@ -7557,7 +7557,7 @@ dependencies = [
 
 [[package]]
 name = "roastr-cli"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "anyhow",
  "fedimint-build 0.4.0-alpha",

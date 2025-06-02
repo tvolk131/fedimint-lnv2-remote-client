@@ -1,6 +1,6 @@
 [package]
 name = "roastr"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["tvolk131"]
 edition = "2024"
 description = "fedimintd"
