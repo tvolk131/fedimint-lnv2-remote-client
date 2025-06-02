@@ -32,15 +32,12 @@ fedimint-client = "0.7.2"
 fedimint-client-module = "0.7.2"
 fedimint-lnv2-common = "0.7.2"
 fedimint-logging = "0.7.2"
-fedimint-testing = "0.7.2"
 fedimint-tpe = "0.7.2"
 devimint = "0.7.2"
-fedimint-aead = "0.7.2"
 
 async-stream = "0.3.6"
 async-trait = "0.1.85"
 bitcoin = { version = "0.32.5", features = ["serde"] }
-bincode2 = "2.0.1"
 anyhow = "1.0.66"
 clap = { version = "4.5.26", features = [
     "derive",
@@ -52,19 +49,13 @@ clap = { version = "4.5.26", features = [
     "env",
 ], default-features = false }
 futures = "0.3.28"
-itertools = "0.14.0"
 erased-serde = "0.4.5"
 lightning-invoice = "0.32.0"
-nostr-sdk = "0.38.0"
-schnorr_fun = { version = "0.10.0", features = ["serde", "bincode"] }
 tracing = "0.1.41"
 rand = "0.8.5"
 secp256k1 = "0.29.0"
 serde = { version = "1.0.149", features = ["derive"] }
 serde_json = { version = "1.0.91", features = ["preserve_order"] }
-sha2 = "0.10"
-strum = "0.26.3"
-strum_macros = "0.26.4"
 thiserror = "2.0.11"
 tikv-jemallocator = "0.6.0"
 tokio = { version = "1.43.0", features = ["full", "tracing"] }

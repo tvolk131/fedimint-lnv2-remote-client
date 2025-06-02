@@ -15,7 +15,6 @@ default = []
 cli = ["dep:clap", "dep:hex", "dep:bincode"]
 
 [dependencies]
-aquamarine = "0.6.0"
 async-stream = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
@@ -32,16 +31,8 @@ fedimint-tpe = { workspace = true }
 futures = { workspace = true }
 erased-serde = { workspace = true }
 lightning-invoice = { workspace = true }
-nostr-sdk = { workspace = true }
 rand = { workspace = true }
-sha2 = { workspace = true }
-secp256k1 = { workspace = true }
-schnorr_fun = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-strum = { workspace = true }
-strum_macros = { workspace = true }
-tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
-url = { workspace = true }
