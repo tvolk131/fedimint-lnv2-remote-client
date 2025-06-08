@@ -2960,6 +2960,7 @@ name = "fedimint-lnv2-remote-client"
 version = "0.0.3"
 dependencies = [
  "anyhow",
+ "aquamarine",
  "async-stream",
  "async-trait",
  "bincode",

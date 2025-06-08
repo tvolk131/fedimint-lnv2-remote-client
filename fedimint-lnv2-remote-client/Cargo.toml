@@ -17,6 +17,7 @@ cli = ["dep:clap", "dep:hex", "dep:bincode"]
 [dependencies]
 async-stream = { workspace = true }
 async-trait = { workspace = true }
+aquamarine = { workspace = true }
 anyhow = { workspace = true }
 bitcoin = { workspace = true }
 bincode = { version = "1.3.3", optional = true }
