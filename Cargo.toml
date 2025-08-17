@@ -23,22 +23,22 @@ license-file = "LICENSE"
 keywords = ["bitcoin", "lightning", "chaumian", "e-cash", "federated"]
 
 [workspace.dependencies]
-fedimintd = "0.7.2"
-fedimint-api-client = "0.7.2"
-fedimint-cli = "0.7.2"
-fedimint-core = "0.7.2"
-fedimint-server = "0.7.2"
-fedimint-client = "0.7.2"
-fedimint-client-module = "0.7.2"
-fedimint-lnv2-common = "0.7.2"
-fedimint-logging = "0.7.2"
-fedimint-tpe = "0.7.2"
-devimint = "0.7.2"
+fedimintd = "0.8.0"
+fedimint-api-client = "0.8.0"
+fedimint-cli = "0.8.0"
+fedimint-core = "0.8.0"
+fedimint-server = "0.8.0"
+fedimint-client = "0.8.0"
+fedimint-client-module = "0.8.0"
+fedimint-lnv2-common = "0.8.0"
+fedimint-logging = "0.8.0"
+fedimint-tpe = "0.8.0"
+devimint = "0.8.0"
 
 async-stream = "0.3.6"
-async-trait = "0.1.85"
+async-trait = "0.1.88"
 aquamarine = "0.5.0"
-bitcoin = { version = "0.32.5", features = ["serde"] }
+bitcoin = { version = "0.32.7", features = ["serde"] }
 anyhow = "1.0.99"
 clap = { version = "4.5.47", features = [
     "derive",
@@ -49,9 +49,9 @@ clap = { version = "4.5.47", features = [
     "suggestions",
     "env",
 ], default-features = false }
-futures = "0.3.28"
-erased-serde = "0.4.5"
-lightning-invoice = "0.32.0"
+futures = "0.3.31"
+erased-serde = "0.4.6"
+lightning-invoice = "0.33.2"
 tracing = "0.1.41"
 rand = "0.8.5"
 secp256k1 = "0.29.0"
