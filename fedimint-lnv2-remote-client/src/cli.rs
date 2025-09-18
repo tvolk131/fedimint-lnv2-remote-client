@@ -89,6 +89,7 @@ pub(crate) async fn handle_cli_command(
         Opts::GetClaimableContracts { claimer_pk, limit } => {
             json(lightning.get_claimable_contracts(claimer_pk, limit).await)
         }
+        #[allow(clippy::unit_arg)]
         Opts::RemoveClaimedContract { contract_id } => json(
             lightning
                 .remove_claimed_contracts(vec![ContractId(contract_id)])

@@ -8,7 +8,7 @@ license = "MIT"
 publish = false
 
 [[bin]]
-name = "roastr-devimint-tests"
+name = "fedimint-lnv2-remote-tests"
 path = "bin/tests.rs"
 
 [dependencies]

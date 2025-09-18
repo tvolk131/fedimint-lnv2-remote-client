@@ -246,14 +246,14 @@ async fn test_idempotency(
 }
 
 async fn test_expired_payment(
-    dev_fed: &DevJitFed,
+    _dev_fed: &DevJitFed,
     receiver_client: Client,
     claimer_client: Client,
     gw_addr: &str,
 ) -> anyhow::Result<()> {
     let claimer_pk = get_public_key(&claimer_client).await?;
 
-    let (invoice, operation_id) = remote_receive(
+    let (_invoice, operation_id) = remote_receive(
         &receiver_client,
         claimer_pk,
         &PAYMENT_AMOUNT,

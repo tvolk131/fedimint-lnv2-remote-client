@@ -344,7 +344,9 @@ impl LightningClientModule {
                 loop {
                     if let Some(LightningClientStateMachines::RemoteReceive(state)) = stream.next().await {
                         match state.state {
-                            RemoteReceiveSMState::Pending => continue,
+                            // If receive is pending, yield nothing and wait for
+                            // the next item from the stream, i.e. continue.
+                            RemoteReceiveSMState::Pending => {},
                             RemoteReceiveSMState::Funded => {
                                 yield FinalRemoteReceiveOperationState::Funded;
                                 return;
