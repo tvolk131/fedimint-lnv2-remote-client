@@ -36,7 +36,7 @@ fedimint-tpe = "0.7.2"
 devimint = "0.7.2"
 
 async-stream = "0.3.6"
-async-trait = "0.1.85"
+async-trait = "0.1.89"
 aquamarine = "0.5.0"
 bitcoin = { version = "0.32.7", features = ["serde"] }
 anyhow = "1.0.99"
