@@ -5,22 +5,14 @@ members = [
     "fedimint-lnv2-remote-client",
     "fedimint-lnv2-remote-tests",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
-version = "0.0.4"
-
-[workspace.metadata]
-name = "fedimint-lnv2-remote"
-authors = ["The Fedimint Developers"]
+authors = ["tvolk131"]
 edition = "2024"
-description = "Fedimint compiled with custom module set"
-documentation = "https://github.com/fedimint/fedimint-custom-modules-example"
 readme = "README.md"
-homepage = "https://github.com/fedimint/fedimint-custom-modules-example"
-repository = "https://github.com/fedimint/fedimint-custom-modules-example"
-license-file = "LICENSE"
-keywords = ["bitcoin", "lightning", "chaumian", "e-cash", "federated"]
+repository = "https://github.com/lightningvend/vendimint"
+version = "0.0.4"
 
 [workspace.dependencies]
 fedimintd = "0.8.1"
@@ -62,29 +54,36 @@ tikv-jemallocator = "0.6.0"
 tokio = { version = "1.47.1", features = ["full", "tracing"] }
 url = "2.5.4"
 
+# TODO: Figure out what this does and if it's needed.
+# It's a copy/paste from roastr.
 [profile.dev]
 split-debuginfo = "packed"
 
-# in dev mode optimize crates that are perf-critical (usually just crypto crates)
+# In dev mode, optimize perf-critical crates (mainly cryptography crates).
+# This prevents fedimint from being really slow.
 [profile.dev.package]
-secp256k1 = { opt-level = 3 }
-secp256k1-sys = { opt-level = 3 }
 bitcoin_hashes = { opt-level = 3 }
+bls12_381 = { opt-level = 3 }
+byteorder = { opt-level = 3 }
 ff = { opt-level = 3 }
 group = { opt-level = 3 }
-tikv-jemalloc-sys = { opt-level = 3 }
 pairing = { opt-level = 3 }
 rand_core = { opt-level = 3 }
-byteorder = { opt-level = 3 }
-zeroize = { opt-level = 3 }
-bls12_381 = { opt-level = 3 }
-subtle = { opt-level = 3 }
 ring = { opt-level = 3 }
+secp256k1 = { opt-level = 3 }
+secp256k1-sys = { opt-level = 3 }
+subtle = { opt-level = 3 }
+tikv-jemalloc-sys = { opt-level = 3 }
+zeroize = { opt-level = 3 }
 
+# TODO: Figure out what this does and if it's needed.
+# It's a copy/paste from roastr.
 [profile.ci]
 inherits = "dev"
 debug = "line-tables-only"
 incremental = false
 
+# TODO: Figure out what this does and if it's needed.
+# It's a copy/paste from roastr.
 [profile.release]
 debug = "line-tables-only"

@@ -1,9 +1,11 @@
 [package]
-name = "roastr"
-version = "0.0.4"
-authors = ["tvolk131"]
-edition = "2024"
-description = "fedimintd"
+name = "fedimintd"
+publish = false
+authors = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
 
 [[bin]]
 name = "fedimintd"

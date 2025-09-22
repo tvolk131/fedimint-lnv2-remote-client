@@ -2038,7 +2038,7 @@ dependencies = [
  "fedimint-unknown-server",
  "fedimint-wallet-client",
  "fedimint-wallet-server",
- "fedimintd",
+ "fedimintd 0.8.1",
  "fs-lock",
  "futures",
  "hex",
@@ -2520,6 +2520,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e04b1c4aa448203f559acf9b8e5af10ef5fafb8d653828e1a3bd7a759cf92e"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "fedimint-cli"
+version = "0.0.4"
+dependencies = [
+ "anyhow",
+ "fedimint-build",
+ "fedimint-cli 0.8.1",
+ "fedimint-core",
+ "fedimint-lnv2-remote-client",
+ "fedimint-mint-client",
+ "fedimint-wallet-client",
+ "tokio",
 ]
 
 [[package]]
@@ -3502,6 +3516,17 @@ dependencies = [
  "strum_macros 0.26.4",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "fedimintd"
+version = "0.0.4"
+dependencies = [
+ "anyhow",
+ "fedimint-build",
+ "fedimint-core",
+ "fedimintd 0.8.1",
+ "tokio",
 ]
 
 [[package]]
@@ -7555,31 +7580,6 @@ dependencies = [
  "libc",
  "untrusted 0.9.0",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "roastr"
-version = "0.0.4"
-dependencies = [
- "anyhow",
- "fedimint-build",
- "fedimint-core",
- "fedimintd",
- "tokio",
-]
-
-[[package]]
-name = "roastr-cli"
-version = "0.0.4"
-dependencies = [
- "anyhow",
- "fedimint-build",
- "fedimint-cli",
- "fedimint-core",
- "fedimint-lnv2-remote-client",
- "fedimint-mint-client",
- "fedimint-wallet-client",
- "tokio",
 ]
 
 [[package]]

@@ -1,11 +1,11 @@
 [package]
 name = "fedimint-lnv2-remote-tests"
-version = "0.0.4"
-authors = ["tvolk131"]
-edition = "2024"
-description = "A federated remote lightning receive client."
-license = "MIT"
 publish = false
+authors = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
 
 [[bin]]
 name = "fedimint-lnv2-remote-tests"
