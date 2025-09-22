@@ -14,17 +14,10 @@ pub enum DbKeyPrefix {
 #[derive(Debug, Clone, Encodable, Decodable)]
 pub struct UnfundedContractKey(pub ContractId);
 
-#[derive(Debug, Clone, Encodable, Decodable)]
-pub struct UnfundedContractKeyPrefix;
-
 impl_db_record!(
     key = UnfundedContractKey,
     value = UnfundedContractInfo,
     db_prefix = DbKeyPrefix::UnfundedContract,
-);
-impl_db_lookup!(
-    key = UnfundedContractKey,
-    query_prefix = UnfundedContractKeyPrefix
 );
 
 #[derive(Debug, Clone, Encodable, Decodable)]
