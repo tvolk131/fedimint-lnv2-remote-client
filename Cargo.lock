@@ -346,6 +346,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-compat"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1ba85bc55464dcbf728b56d97e119d673f4cf9062be330a9a26f3acf504a590"
+dependencies = [
+ "futures-core",
+ "futures-io",
+ "once_cell",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "async-compression"
 version = "0.4.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -508,6 +521,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async_io_stream"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6d7b9decdf35d8908a7e3ef02f64c5e9b1695e230154c0e8de3969142d9b94c"
+dependencies = [
+ "futures",
+ "pharos",
+ "rustc_version",
+]
+
+[[package]]
 name = "asynchronous-codec"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -536,6 +560,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomic-polyfill"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8cf2bce30dfe09ef0bfaef228b9d414faaf7e563035494d7fe092dba54b300f4"
+dependencies = [
+ "critical-section",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -548,6 +581,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d9a9bf8b79a749ee0b911b91b671cc2b6c670bdbc7e3dfd537576ddc94bb2a2"
 dependencies = [
  "http 0.2.12",
+ "log",
+ "url",
+]
+
+[[package]]
+name = "attohttpc"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16e2cdb6d5ed835199484bb92bb8b3edd526effe995c61732580439c1a67e2e9"
+dependencies = [
+ "base64 0.22.1",
+ "http 1.3.1",
  "log",
  "url",
 ]
@@ -770,6 +815,12 @@ name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+
+[[package]]
+name = "base32"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "022dfe9eb35f19ebbcb51e0b40a5ab759f46ad60cadf7297e0bd085afb50e076"
 
 [[package]]
 name = "base58ck"
@@ -1201,6 +1252,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2225b558afc76c596898f5f1b3fc35cfce0eb1b13635cbd7d1b2a7177dc10ccd"
 
 [[package]]
+name = "btparse"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "387e80962b798815a2b5c4bcfdb6bf626fa922ffe9f74e373103b858738e9f31"
+
+[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1414,6 +1471,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1"
 dependencies = [
  "thiserror 2.0.16",
+]
+
+[[package]]
+name = "color-backtrace"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e49b1973af2a47b5b44f7dd0a344598da95c872e1556b045607888784e973b91"
+dependencies = [
+ "backtrace",
+ "btparse",
+ "termcolor",
 ]
 
 [[package]]
@@ -2049,21 +2117,21 @@ dependencies = [
  "chrono",
  "clap",
  "esplora-client 0.10.0",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-bitcoind",
  "fedimint-build 0.7.2",
  "fedimint-client",
- "fedimint-client-module",
- "fedimint-core",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
  "fedimint-gateway-common",
  "fedimint-lightning",
  "fedimint-ln-client",
  "fedimint-ln-server",
  "fedimint-lnv2-common",
  "fedimint-lnv2-server",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "fedimint-meta-server",
- "fedimint-mint-common",
+ "fedimint-mint-common 0.7.2",
  "fedimint-mint-server",
  "fedimint-portalloc",
  "fedimint-server",
@@ -2076,7 +2144,7 @@ dependencies = [
  "fs-lock",
  "futures",
  "hex",
- "iroh-base",
+ "iroh-base 0.34.1",
  "itertools 0.13.0",
  "nix 0.29.0",
  "rand 0.8.5",
@@ -2179,6 +2247,12 @@ dependencies = [
  "once_cell",
  "winapi",
 ]
+
+[[package]]
+name = "dnssec-prover"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec4f825369fc7134da70ca4040fddc8e03b80a46d249ae38d9c1c39b7b4476bf"
 
 [[package]]
 name = "document-features"
@@ -2521,11 +2595,11 @@ dependencies = [
  "bitcoin",
  "curve25519-dalek",
  "fedimint-arti-client",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "futures",
- "iroh",
- "iroh-base",
+ "iroh 0.34.1",
+ "iroh-base 0.34.1",
  "itertools 0.13.0",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -2542,6 +2616,42 @@ dependencies = [
  "tokio-rustls 0.26.3",
  "tracing",
  "webpki-roots 0.26.11",
+ "z32",
+]
+
+[[package]]
+name = "fedimint-api-client"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbaf6cf3f461f20c162ed3755334ff932d6f7c50d497d1872dfa36647f28a74f"
+dependencies = [
+ "anyhow",
+ "async-channel 2.5.0",
+ "async-trait",
+ "base64 0.22.1",
+ "bitcoin",
+ "fedimint-core 0.8.1",
+ "fedimint-logging 0.8.1",
+ "futures",
+ "iroh 0.35.0",
+ "iroh 0.90.0",
+ "iroh-base 0.35.0",
+ "itertools 0.14.0",
+ "jsonrpsee-core",
+ "jsonrpsee-types",
+ "jsonrpsee-wasm-client",
+ "jsonrpsee-ws-client",
+ "lru 0.13.0",
+ "rand 0.8.5",
+ "rustls-pki-types",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tokio-rustls 0.26.3",
+ "tracing",
+ "url",
+ "webpki-roots 1.0.2",
  "z32",
 ]
 
@@ -2597,8 +2707,8 @@ checksum = "f8fcc09594eee7459d4382a66b04b37082c40b1778544b27972161ce628bb79f"
 dependencies = [
  "bip39",
  "fedimint-client",
- "fedimint-core",
- "fedimint-derive-secret",
+ "fedimint-core 0.7.2",
+ "fedimint-derive-secret 0.7.2",
  "rand 0.8.5",
 ]
 
@@ -2613,8 +2723,8 @@ dependencies = [
  "bitcoin",
  "bitcoincore-rpc",
  "esplora-client 0.10.0",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-server-core",
  "futures",
  "hex",
@@ -2631,6 +2741,15 @@ name = "fedimint-build"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f44704073d0f9bb09abb3348f6b674ba669bde51f105a369bc715c6ff19189a"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "fedimint-build"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e04b1c4aa448203f559acf9b8e5af10ef5fafb8d653828e1a3bd7a759cf92e"
 dependencies = [
  "serde_json",
 ]
@@ -2655,24 +2774,24 @@ dependencies = [
  "clap",
  "clap_complete",
  "fedimint-aead",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-bip39",
  "fedimint-build 0.7.2",
  "fedimint-client",
- "fedimint-core",
- "fedimint-eventlog",
+ "fedimint-core 0.7.2",
+ "fedimint-eventlog 0.7.2",
  "fedimint-ln-client",
  "fedimint-lnv2-client",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "fedimint-meta-client",
- "fedimint-mint-client",
+ "fedimint-mint-client 0.7.2",
  "fedimint-rocksdb",
  "fedimint-wallet-client",
  "fs-lock",
  "futures",
  "hex",
  "itertools 0.13.0",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -2694,13 +2813,13 @@ dependencies = [
  "async-trait",
  "bitcoin",
  "fedimint-aead",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-build 0.7.2",
- "fedimint-client-module",
- "fedimint-core",
- "fedimint-derive-secret",
- "fedimint-eventlog",
- "fedimint-logging",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
+ "fedimint-derive-secret 0.7.2",
+ "fedimint-eventlog 0.7.2",
+ "fedimint-logging 0.7.2",
  "futures",
  "reqwest 0.12.23",
  "serde",
@@ -2723,12 +2842,12 @@ dependencies = [
  "async-stream",
  "async-trait",
  "bitcoin",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-build 0.7.2",
- "fedimint-core",
- "fedimint-derive-secret",
- "fedimint-eventlog",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-derive-secret 0.7.2",
+ "fedimint-eventlog 0.7.2",
+ "fedimint-logging 0.7.2",
  "futures",
  "itertools 0.13.0",
  "rand 0.8.5",
@@ -2736,6 +2855,37 @@ dependencies = [
  "serde",
  "serde_json",
  "strum 0.26.3",
+ "strum_macros 0.26.4",
+ "thiserror 2.0.16",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+]
+
+[[package]]
+name = "fedimint-client-module"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b5a9cd328ec8cec84f8c274bd835f08f9e921db63b1ac47da413a6ca61d3139"
+dependencies = [
+ "anyhow",
+ "aquamarine",
+ "async-stream",
+ "async-trait",
+ "bitcoin",
+ "fedimint-api-client 0.8.1",
+ "fedimint-build 0.8.1",
+ "fedimint-core 0.8.1",
+ "fedimint-derive-secret 0.8.1",
+ "fedimint-eventlog 0.8.1",
+ "fedimint-logging 0.8.1",
+ "futures",
+ "itertools 0.14.0",
+ "rand 0.8.5",
+ "reqwest 0.12.23",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
  "strum_macros 0.26.4",
  "thiserror 2.0.16",
  "tokio",
@@ -2766,8 +2916,8 @@ dependencies = [
  "bitvec",
  "bls12_381",
  "erased-serde 0.4.8",
- "fedimint-derive",
- "fedimint-logging",
+ "fedimint-derive 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-threshold-crypto",
  "futures",
  "futures-util",
@@ -2777,13 +2927,13 @@ dependencies = [
  "hex",
  "hex-conservative 0.3.0",
  "imbl",
- "iroh-base",
+ "iroh-base 0.34.1",
  "itertools 0.13.0",
  "js-sys",
  "jsonrpsee-core",
- "lightning",
- "lightning-invoice",
- "lightning-types",
+ "lightning 0.0.125",
+ "lightning-invoice 0.32.0",
+ "lightning-types 0.1.0",
  "macro_rules_attribute",
  "miniscript",
  "parity-scale-codec",
@@ -2795,6 +2945,67 @@ dependencies = [
  "serdect",
  "slotmap",
  "strum 0.26.3",
+ "strum_macros 0.26.4",
+ "thiserror 2.0.16",
+ "tokio",
+ "tokio-rustls 0.24.1",
+ "tracing",
+ "url",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "fedimint-core"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b30ca0794b072b1f60482894dfd57877d3cb3112f5bf27c6be392fe570f157d4"
+dependencies = [
+ "anyhow",
+ "async-channel 2.5.0",
+ "async-lock",
+ "async-recursion",
+ "async-trait",
+ "backon",
+ "backtrace",
+ "base64 0.22.1",
+ "bech32 0.11.0",
+ "bincode 1.3.3",
+ "bitcoin",
+ "bitcoin-io",
+ "bitcoin-units",
+ "bitvec",
+ "bls12_381",
+ "erased-serde 0.4.8",
+ "fedimint-derive 0.8.1",
+ "fedimint-logging 0.8.1",
+ "fedimint-threshold-crypto",
+ "futures",
+ "futures-util",
+ "getrandom 0.3.3",
+ "gloo-timers 0.3.0",
+ "group",
+ "hex",
+ "hex-conservative 0.3.0",
+ "imbl",
+ "iroh-base 0.35.0",
+ "itertools 0.14.0",
+ "js-sys",
+ "jsonrpsee-core",
+ "lightning 0.1.5",
+ "lightning-invoice 0.33.2",
+ "lightning-types 0.2.0",
+ "macro_rules_attribute",
+ "miniscript",
+ "n0-future",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "scopeguard",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "serdect",
+ "slotmap",
+ "strum 0.27.2",
  "strum_macros 0.26.4",
  "thiserror 2.0.16",
  "tokio",
@@ -2817,6 +3028,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedimint-derive"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9714f61fd0ac0bccdae22a46c0ad1db544c77652feaada4074bdcaeaf6a1bd19"
+dependencies = [
+ "itertools 0.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "fedimint-derive-secret"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2825,8 +3048,22 @@ dependencies = [
  "anyhow",
  "bitcoin_hashes 0.14.0",
  "bls12_381",
- "fedimint-core",
- "fedimint-hkdf",
+ "fedimint-core 0.7.2",
+ "fedimint-hkdf 0.7.2",
+ "ring 0.17.14",
+]
+
+[[package]]
+name = "fedimint-derive-secret"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2645ad8dd6c07414c2cbde76c38277642a68eb733cfe9e96c3c62bc68a4f677"
+dependencies = [
+ "anyhow",
+ "bitcoin_hashes 0.14.0",
+ "bls12_381",
+ "fedimint-core 0.8.1",
+ "fedimint-hkdf 0.8.1",
  "ring 0.17.14",
 ]
 
@@ -2838,10 +3075,28 @@ checksum = "a6fdac6c8ae37e1e05136e2e221163b7e29797b0b6a432239669b849df755a27"
 dependencies = [
  "anyhow",
  "async-trait",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "futures",
  "itertools 0.13.0",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "fedimint-eventlog"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b407e6b082bece562454e4b389e4e3efea5328f47f6461edbc0002030c0af41"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "fedimint-core 0.8.1",
+ "fedimint-logging 0.8.1",
+ "futures",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "tokio",
@@ -2856,13 +3111,13 @@ checksum = "a15e62642c6c0c3abe57cf6ab76cc36bba6a86f0368f2acb15090a106a5ce775"
 dependencies = [
  "bitcoin",
  "clap",
- "fedimint-api-client",
- "fedimint-core",
- "fedimint-eventlog",
+ "fedimint-api-client 0.7.2",
+ "fedimint-core 0.7.2",
+ "fedimint-eventlog 0.7.2",
  "fedimint-lnv2-common",
- "fedimint-mint-client",
+ "fedimint-mint-client 0.7.2",
  "fedimint-wallet-client",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "serde",
  "serde_json",
 ]
@@ -2872,6 +3127,15 @@ name = "fedimint-hkdf"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc718bc9b1e97f0a854dadb04017745a67696f47f36f6f7dd13087fc2575b70e"
+dependencies = [
+ "bitcoin_hashes 0.14.0",
+]
+
+[[package]]
+name = "fedimint-hkdf"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c3b5b5ab62944adaf02f0529e24a1aafaee098946972eb40e98b8949ac412fa"
 dependencies = [
  "bitcoin_hashes 0.14.0",
 ]
@@ -2887,16 +3151,16 @@ dependencies = [
  "bitcoin",
  "fedimint-bip39",
  "fedimint-bitcoind",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-gateway-common",
  "fedimint-ln-common",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "fedimint-tonic-lnd",
  "futures",
  "hex",
  "ldk-node",
- "lightning",
- "lightning-invoice",
+ "lightning 0.0.125",
+ "lightning-invoice 0.32.0",
  "lockable",
  "serde",
  "thiserror 2.0.16",
@@ -2918,15 +3182,15 @@ dependencies = [
  "bitcoin",
  "clap",
  "erased-serde 0.4.8",
- "fedimint-api-client",
- "fedimint-client-module",
- "fedimint-core",
- "fedimint-derive-secret",
+ "fedimint-api-client 0.7.2",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
+ "fedimint-derive-secret 0.7.2",
  "fedimint-ln-common",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "futures",
  "itertools 0.13.0",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "lnurl-rs",
  "rand 0.8.5",
  "reqwest 0.12.23",
@@ -2947,10 +3211,10 @@ checksum = "3b2214022915ea9377338d0722e3a264ae0e9c659492a7e51acc7b00451f228a"
 dependencies = [
  "anyhow",
  "bitcoin",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-threshold-crypto",
- "lightning",
- "lightning-invoice",
+ "lightning 0.0.125",
+ "lightning-invoice 0.32.0",
  "serde",
  "serde-big-array",
  "serde_json",
@@ -2969,9 +3233,9 @@ dependencies = [
  "bitcoin_hashes 0.14.0",
  "erased-serde 0.4.8",
  "fedimint-bitcoind",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-ln-common",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "fedimint-metrics",
  "fedimint-server-core",
  "fedimint-threshold-crypto",
@@ -2997,15 +3261,15 @@ dependencies = [
  "bitcoin",
  "clap",
  "erased-serde 0.4.8",
- "fedimint-api-client",
- "fedimint-client-module",
- "fedimint-core",
+ "fedimint-api-client 0.7.2",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
  "fedimint-lnv2-common",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "fedimint-tpe",
  "futures",
  "itertools 0.13.0",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -3024,11 +3288,11 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bitcoin",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-ln-common",
  "fedimint-tpe",
  "group",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "rand 0.8.5",
  "reqwest 0.12.23",
  "serde",
@@ -3048,15 +3312,15 @@ dependencies = [
  "bitcoin",
  "clap",
  "erased-serde 0.4.8",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-client",
- "fedimint-client-module",
- "fedimint-core",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
  "fedimint-lnv2-common",
  "fedimint-tpe",
  "futures",
  "hex",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -3071,11 +3335,11 @@ dependencies = [
  "anyhow",
  "bincode 1.3.3",
  "devimint",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-lnv2-common",
  "fedimint-lnv2-remote-client",
  "hex",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "serde_json",
  "substring",
  "tokio",
@@ -3093,9 +3357,9 @@ dependencies = [
  "bls12_381",
  "erased-serde 0.4.8",
  "fedimint-bitcoind",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-lnv2-common",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "fedimint-server-core",
  "fedimint-tpe",
  "futures",
@@ -3124,6 +3388,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedimint-logging"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac0f1adf908047a7696572d7ce5e726befbce2a3befffbd26305dfba6b87d46c"
+dependencies = [
+ "anyhow",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "fedimint-meta-client"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3133,10 +3407,10 @@ dependencies = [
  "async-trait",
  "clap",
  "erased-serde 0.4.8",
- "fedimint-api-client",
- "fedimint-client-module",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-api-client 0.7.2",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-meta-common",
  "serde",
  "serde_json",
@@ -3153,8 +3427,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bac2cbfbe99147565eca5441fc67bff52b7225af475c5824623c333fc71e6f7a"
 dependencies = [
  "anyhow",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "hex",
  "serde",
  "serde_json",
@@ -3171,8 +3445,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "erased-serde 0.4.8",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-meta-common",
  "fedimint-server-core",
  "futures",
@@ -3191,7 +3465,7 @@ checksum = "481cbc1eff3143dc647de62c3764c092dc0928a3d3498ef2d6c760be76a6169e"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "prometheus",
  "tokio",
  "tracing",
@@ -3213,14 +3487,14 @@ dependencies = [
  "bls12_381",
  "clap",
  "erased-serde 0.4.8",
- "fedimint-api-client",
- "fedimint-client-module",
- "fedimint-core",
- "fedimint-derive-secret",
- "fedimint-eventlog",
- "fedimint-logging",
- "fedimint-mint-common",
- "fedimint-tbs",
+ "fedimint-api-client 0.7.2",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
+ "fedimint-derive-secret 0.7.2",
+ "fedimint-eventlog 0.7.2",
+ "fedimint-logging 0.7.2",
+ "fedimint-mint-common 0.7.2",
+ "fedimint-tbs 0.7.2",
  "fedimint-threshold-crypto",
  "futures",
  "hex",
@@ -3238,6 +3512,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedimint-mint-client"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "247769a7e7b2c10e41fd5b1dd99c9a59fca55628bf9729c79084eac4d0a62a3d"
+dependencies = [
+ "anyhow",
+ "aquamarine",
+ "async-stream",
+ "async-trait",
+ "base64 0.22.1",
+ "bitcoin_hashes 0.14.0",
+ "bls12_381",
+ "erased-serde 0.4.8",
+ "fedimint-api-client 0.8.1",
+ "fedimint-client-module 0.8.1",
+ "fedimint-core 0.8.1",
+ "fedimint-derive-secret 0.8.1",
+ "fedimint-eventlog 0.8.1",
+ "fedimint-logging 0.8.1",
+ "fedimint-mint-common 0.8.1",
+ "fedimint-tbs 0.8.1",
+ "fedimint-threshold-crypto",
+ "futures",
+ "hex",
+ "itertools 0.14.0",
+ "rayon",
+ "serde",
+ "serde-big-array",
+ "serde_json",
+ "serdect",
+ "strum 0.27.2",
+ "strum_macros 0.26.4",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "fedimint-mint-common"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3245,8 +3557,23 @@ checksum = "dc242996096728dba764ead1d8b772a6847bde0be13fe92db4dc87241efe556d"
 dependencies = [
  "anyhow",
  "bitcoin_hashes 0.14.0",
- "fedimint-core",
- "fedimint-tbs",
+ "fedimint-core 0.7.2",
+ "fedimint-tbs 0.7.2",
+ "serde",
+ "thiserror 2.0.16",
+ "tracing",
+]
+
+[[package]]
+name = "fedimint-mint-common"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b5b8bf039e3cb48f41fa7fbf3d61bbf2d656628d92ad1fccffcebac3d3ffe73"
+dependencies = [
+ "anyhow",
+ "bitcoin_hashes 0.14.0",
+ "fedimint-core 0.8.1",
+ "fedimint-tbs 0.8.1",
  "serde",
  "thiserror 2.0.16",
  "tracing",
@@ -3261,12 +3588,12 @@ dependencies = [
  "anyhow",
  "async-trait",
  "erased-serde 0.4.8",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-metrics",
- "fedimint-mint-common",
+ "fedimint-mint-common 0.7.2",
  "fedimint-server-core",
- "fedimint-tbs",
+ "fedimint-tbs 0.7.2",
  "fedimint-threshold-crypto",
  "futures",
  "itertools 0.13.0",
@@ -3285,7 +3612,7 @@ checksum = "8f35615bb8f1886260616e359fe0c2bea0635c54a6bedd1a5fc5255648876e82"
 dependencies = [
  "anyhow",
  "dirs 6.0.0",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fs2",
  "rand 0.8.5",
  "serde",
@@ -3301,8 +3628,8 @@ checksum = "e4a4cd789180e5487213e8b667883f9b76cdf60d08448c955ff6db812dc2488b"
 dependencies = [
  "anyhow",
  "async-trait",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fs-lock",
  "futures",
  "rocksdb",
@@ -3327,19 +3654,19 @@ dependencies = [
  "bytes",
  "fedimint-aead",
  "fedimint-aleph-bft",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-bitcoind",
  "fedimint-build 0.7.2",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-metrics",
  "fedimint-server-core",
  "futures",
  "group",
  "hex",
  "hyper 1.7.0",
- "iroh",
- "iroh-base",
+ "iroh 0.34.1",
+ "iroh-base 0.34.1",
  "itertools 0.13.0",
  "jsonrpsee",
  "parity-scale-codec",
@@ -3372,8 +3699,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bls12_381",
- "fedimint-api-client",
- "fedimint-core",
+ "fedimint-api-client 0.7.2",
+ "fedimint-core 0.7.2",
  "futures",
  "group",
  "tokio",
@@ -3390,7 +3717,7 @@ dependencies = [
  "axum 0.8.4",
  "axum-extra",
  "chrono",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-lnv2-server",
  "fedimint-meta-server",
  "fedimint-server-core",
@@ -3410,7 +3737,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2e92ca5d21c39f18938f817ecd20c852f12a6086346889be95339b39f5b1dbc"
 dependencies = [
  "bls12_381",
- "fedimint-core",
+ "fedimint-core 0.7.2",
+ "group",
+ "hex",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "serde",
+ "sha3",
+]
+
+[[package]]
+name = "fedimint-tbs"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d75e280120521df829fb6d0785f61c1ef58d40d765eb9fa8d62a8ce8815c527"
+dependencies = [
+ "bls12_381",
+ "fedimint-core 0.8.1",
  "group",
  "hex",
  "rand 0.8.5",
@@ -3427,9 +3770,9 @@ checksum = "ce73d71f6b321e6266020d94ffd252b18c4a5ff367d7bb8250fd1cce28d6cdb1"
 dependencies = [
  "anyhow",
  "fedimint-client",
- "fedimint-client-module",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-rocksdb",
  "fedimint-server",
  "futures",
@@ -3541,7 +3884,7 @@ checksum = "0603e0b47a8802a96982002df63194026dd99569451169898a8e7fcd74eb2ec0"
 dependencies = [
  "bitcoin_hashes 0.14.0",
  "bls12_381",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "group",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -3556,7 +3899,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f3fa36dca184ed19f36e3a0fe2211d541c77c221439f6154d1af42c468b01a2"
 dependencies = [
  "anyhow",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "serde",
  "thiserror 2.0.16",
 ]
@@ -3570,7 +3913,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "erased-serde 0.4.8",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-server-core",
  "fedimint-unknown-common",
  "strum 0.26.3",
@@ -3590,13 +3933,13 @@ dependencies = [
  "bitcoin",
  "clap",
  "erased-serde 0.4.8",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-bitcoind",
- "fedimint-client-module",
- "fedimint-core",
- "fedimint-derive-secret",
- "fedimint-eventlog",
- "fedimint-logging",
+ "fedimint-client-module 0.7.2",
+ "fedimint-core 0.7.2",
+ "fedimint-derive-secret 0.7.2",
+ "fedimint-eventlog 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-wallet-common",
  "futures",
  "rand 0.8.5",
@@ -3616,7 +3959,7 @@ checksum = "09220eb530e0bd23152597a221c4df3bc89b151a0b79181e75d781d5bfcfe135"
 dependencies = [
  "anyhow",
  "bitcoin",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "hex",
  "impl-tools",
  "miniscript",
@@ -3635,10 +3978,10 @@ dependencies = [
  "async-trait",
  "bitcoin",
  "erased-serde 0.4.8",
- "fedimint-api-client",
+ "fedimint-api-client 0.7.2",
  "fedimint-bitcoind",
- "fedimint-core",
- "fedimint-logging",
+ "fedimint-core 0.7.2",
+ "fedimint-logging 0.7.2",
  "fedimint-metrics",
  "fedimint-server-core",
  "fedimint-wallet-common",
@@ -3667,15 +4010,15 @@ dependencies = [
  "bitcoin",
  "clap",
  "fedimint-build 0.7.2",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-ln-common",
  "fedimint-ln-server",
  "fedimint-lnv2-common",
  "fedimint-lnv2-server",
- "fedimint-logging",
+ "fedimint-logging 0.7.2",
  "fedimint-meta-server",
  "fedimint-metrics",
- "fedimint-mint-common",
+ "fedimint-mint-common 0.7.2",
  "fedimint-mint-server",
  "fedimint-rocksdb",
  "fedimint-server",
@@ -4168,6 +4511,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash32"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4182,6 +4534,12 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+
+[[package]]
+name = "hashbrown"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a3c133739dddd0d2990f9a4bdf8eb4b21ef50e4851ca85ab661199821d510e"
 
 [[package]]
 name = "hashbrown"
@@ -4230,6 +4588,20 @@ dependencies = [
  "flate2",
  "nom",
  "num-traits",
+]
+
+[[package]]
+name = "heapless"
+version = "0.7.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f"
+dependencies = [
+ "atomic-polyfill",
+ "hash32",
+ "rustc_version",
+ "serde",
+ "spin 0.9.8",
+ "stable_deref_trait",
 ]
 
 [[package]]
@@ -4751,7 +5123,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76b0d7d4541def58a37bf8efc559683f21edce7c82f0d866c93ac21f7e098f93"
 dependencies = [
  "async-trait",
- "attohttpc",
+ "attohttpc 0.24.1",
  "bytes",
  "futures",
  "http 1.3.1",
@@ -4760,6 +5132,27 @@ dependencies = [
  "hyper-util",
  "log",
  "rand 0.8.5",
+ "tokio",
+ "url",
+ "xmltree",
+]
+
+[[package]]
+name = "igd-next"
+version = "0.16.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "516893339c97f6011282d5825ac94fc1c7aad5cad26bdc2d0cee068c0bf97f97"
+dependencies = [
+ "async-trait",
+ "attohttpc 0.30.1",
+ "bytes",
+ "futures",
+ "http 1.3.1",
+ "http-body-util",
+ "hyper 1.7.0",
+ "hyper-util",
+ "log",
+ "rand 0.9.2",
  "tokio",
  "url",
  "xmltree",
@@ -4962,20 +5355,20 @@ dependencies = [
  "futures-util",
  "hickory-resolver",
  "http 1.3.1",
- "igd-next",
+ "igd-next 0.15.1",
  "instant",
- "iroh-base",
- "iroh-metrics",
- "iroh-quinn",
+ "iroh-base 0.34.1",
+ "iroh-metrics 0.32.0",
+ "iroh-quinn 0.13.0",
  "iroh-quinn-proto",
  "iroh-quinn-udp",
- "iroh-relay",
+ "iroh-relay 0.34.1",
  "n0-future",
  "netdev",
- "netwatch",
+ "netwatch 0.4.0",
  "pin-project",
- "pkarr",
- "portmapper",
+ "pkarr 2.3.1",
+ "portmapper 0.4.1",
  "rand 0.8.5",
  "rcgen",
  "reqwest 0.12.23",
@@ -5001,6 +5394,129 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ca758f4ce39ae3f07de922be6c73de6a48a07f39554e78b5745585652ce38f5"
+dependencies = [
+ "aead",
+ "anyhow",
+ "atomic-waker",
+ "backon",
+ "bytes",
+ "cfg_aliases",
+ "concurrent-queue",
+ "crypto_box",
+ "data-encoding",
+ "der",
+ "derive_more 1.0.0",
+ "ed25519-dalek",
+ "futures-buffered",
+ "futures-util",
+ "getrandom 0.3.3",
+ "hickory-resolver",
+ "http 1.3.1",
+ "igd-next 0.16.2",
+ "instant",
+ "iroh-base 0.35.0",
+ "iroh-metrics 0.34.0",
+ "iroh-quinn 0.13.0",
+ "iroh-quinn-proto",
+ "iroh-quinn-udp",
+ "iroh-relay 0.35.0",
+ "n0-future",
+ "netdev",
+ "netwatch 0.5.0",
+ "pin-project",
+ "pkarr 3.10.0",
+ "portmapper 0.5.0",
+ "rand 0.8.5",
+ "rcgen",
+ "reqwest 0.12.23",
+ "ring 0.17.14",
+ "rustls 0.23.32",
+ "rustls-webpki 0.102.8",
+ "serde",
+ "smallvec",
+ "spki",
+ "strum 0.26.3",
+ "stun-rs",
+ "surge-ping",
+ "thiserror 2.0.16",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "url",
+ "wasm-bindgen-futures",
+ "webpki-roots 0.26.11",
+ "x509-parser",
+ "z32",
+]
+
+[[package]]
+name = "iroh"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9436f319c2d24bca1b28a2fab4477c8d2ac795ab2d3aeda142d207b38ec068f4"
+dependencies = [
+ "aead",
+ "backon",
+ "bytes",
+ "cfg_aliases",
+ "crypto_box",
+ "data-encoding",
+ "der",
+ "derive_more 1.0.0",
+ "ed25519-dalek",
+ "futures-buffered",
+ "futures-util",
+ "getrandom 0.3.3",
+ "hickory-resolver",
+ "http 1.3.1",
+ "igd-next 0.16.2",
+ "instant",
+ "iroh-base 0.90.0",
+ "iroh-metrics 0.35.0",
+ "iroh-quinn 0.14.0",
+ "iroh-quinn-proto",
+ "iroh-quinn-udp",
+ "iroh-relay 0.90.0",
+ "n0-future",
+ "n0-snafu",
+ "n0-watcher",
+ "nested_enum_utils",
+ "netdev",
+ "netwatch 0.6.0",
+ "pin-project",
+ "pkarr 3.10.0",
+ "portmapper 0.6.1",
+ "rand 0.8.5",
+ "reqwest 0.12.23",
+ "ring 0.17.14",
+ "rustls 0.23.32",
+ "rustls-pki-types",
+ "rustls-webpki 0.103.6",
+ "serde",
+ "smallvec",
+ "snafu",
+ "spki",
+ "strum 0.26.3",
+ "stun-rs",
+ "surge-ping",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "url",
+ "wasm-bindgen-futures",
+ "webpki-roots 0.26.11",
+ "z32",
+]
+
+[[package]]
 name = "iroh-base"
 version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5018,6 +5534,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-base"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f91ac4aaab68153d726c4e6b39c30f9f9253743f0e25664e52f4caeb46f48d11"
+dependencies = [
+ "curve25519-dalek",
+ "data-encoding",
+ "derive_more 1.0.0",
+ "ed25519-dalek",
+ "postcard",
+ "rand_core 0.6.4",
+ "serde",
+ "thiserror 2.0.16",
+ "url",
+]
+
+[[package]]
+name = "iroh-base"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e0090050c4055b21e61cbcb856f043a2b24ad22c65d76bab91f121b4c7bece3"
+dependencies = [
+ "curve25519-dalek",
+ "data-encoding",
+ "derive_more 1.0.0",
+ "ed25519-dalek",
+ "n0-snafu",
+ "nested_enum_utils",
+ "rand_core 0.6.4",
+ "serde",
+ "snafu",
+ "url",
+]
+
+[[package]]
 name = "iroh-metrics"
 version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5031,10 +5582,69 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-metrics"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f70466f14caff7420a14373676947e25e2917af6a5b1bec45825beb2bf1eb6a7"
+dependencies = [
+ "iroh-metrics-derive",
+ "itoa",
+ "serde",
+ "snafu",
+ "tracing",
+]
+
+[[package]]
+name = "iroh-metrics"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8922c169f1b84d39d325c02ef1bbe1419d4de6e35f0403462b3c7e60cc19634"
+dependencies = [
+ "iroh-metrics-derive",
+ "itoa",
+ "postcard",
+ "serde",
+ "snafu",
+ "tracing",
+]
+
+[[package]]
+name = "iroh-metrics-derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d12f5c45c4ed2436302a4e03cad9a0ad34b2962ad0c5791e1019c0ee30eeb09"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "iroh-quinn"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76c6245c9ed906506ab9185e8d7f64857129aee4f935e899f398a3bd3b70338d"
+dependencies = [
+ "bytes",
+ "cfg_aliases",
+ "iroh-quinn-proto",
+ "iroh-quinn-udp",
+ "pin-project-lite",
+ "rustc-hash 2.1.1",
+ "rustls 0.23.32",
+ "socket2 0.5.10",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+ "web-time",
+]
+
+[[package]]
+name = "iroh-quinn"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cde160ebee7aabede6ae887460cd303c8b809054224815addf1469d54a6fcf7"
 dependencies = [
  "bytes",
  "cfg_aliases",
@@ -5100,15 +5710,15 @@ dependencies = [
  "http-body-util",
  "hyper 1.7.0",
  "hyper-util",
- "iroh-base",
- "iroh-metrics",
- "iroh-quinn",
+ "iroh-base 0.34.1",
+ "iroh-metrics 0.32.0",
+ "iroh-quinn 0.13.0",
  "iroh-quinn-proto",
  "lru 0.12.5",
  "n0-future",
  "num_enum",
  "pin-project",
- "pkarr",
+ "pkarr 2.3.1",
  "postcard",
  "rand 0.8.5",
  "reqwest 0.12.23",
@@ -5125,6 +5735,101 @@ dependencies = [
  "tracing",
  "url",
  "webpki-roots 0.26.11",
+ "z32",
+]
+
+[[package]]
+name = "iroh-relay"
+version = "0.35.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c63f122cdfaa4b4e0e7d6d3921d2b878f42a0c6d3ee5a29456dc3f5ab5ec931f"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "cfg_aliases",
+ "data-encoding",
+ "derive_more 1.0.0",
+ "getrandom 0.3.3",
+ "hickory-resolver",
+ "http 1.3.1",
+ "http-body-util",
+ "hyper 1.7.0",
+ "hyper-util",
+ "iroh-base 0.35.0",
+ "iroh-metrics 0.34.0",
+ "iroh-quinn 0.13.0",
+ "iroh-quinn-proto",
+ "lru 0.12.5",
+ "n0-future",
+ "num_enum",
+ "pin-project",
+ "pkarr 3.10.0",
+ "postcard",
+ "rand 0.8.5",
+ "reqwest 0.12.23",
+ "rustls 0.23.32",
+ "rustls-webpki 0.102.8",
+ "serde",
+ "sha1",
+ "strum 0.26.3",
+ "stun-rs",
+ "thiserror 2.0.16",
+ "tokio",
+ "tokio-rustls 0.26.3",
+ "tokio-util",
+ "tokio-websockets",
+ "tracing",
+ "url",
+ "webpki-roots 0.26.11",
+ "ws_stream_wasm",
+ "z32",
+]
+
+[[package]]
+name = "iroh-relay"
+version = "0.90.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3f3cdbdaebc92835452e4e1d0d4b36118206b0950089b7bc3654f13e843475b"
+dependencies = [
+ "bytes",
+ "cfg_aliases",
+ "data-encoding",
+ "derive_more 1.0.0",
+ "getrandom 0.3.3",
+ "hickory-resolver",
+ "http 1.3.1",
+ "http-body-util",
+ "hyper 1.7.0",
+ "hyper-util",
+ "iroh-base 0.90.0",
+ "iroh-metrics 0.35.0",
+ "iroh-quinn 0.14.0",
+ "iroh-quinn-proto",
+ "lru 0.13.0",
+ "n0-future",
+ "n0-snafu",
+ "nested_enum_utils",
+ "num_enum",
+ "pin-project",
+ "pkarr 3.10.0",
+ "postcard",
+ "rand 0.8.5",
+ "reqwest 0.12.23",
+ "rustls 0.23.32",
+ "rustls-pki-types",
+ "rustls-webpki 0.103.6",
+ "serde",
+ "sha1",
+ "snafu",
+ "strum 0.26.3",
+ "tokio",
+ "tokio-rustls 0.26.3",
+ "tokio-util",
+ "tokio-websockets",
+ "tracing",
+ "url",
+ "webpki-roots 0.26.11",
+ "ws_stream_wasm",
  "z32",
 ]
 
@@ -5433,10 +6138,10 @@ dependencies = [
  "chrono",
  "esplora-client 0.9.0",
  "libc",
- "lightning",
+ "lightning 0.0.125",
  "lightning-background-processor",
  "lightning-block-sync",
- "lightning-invoice",
+ "lightning-invoice 0.32.0",
  "lightning-liquidity",
  "lightning-net-tokio",
  "lightning-persister",
@@ -5533,8 +6238,24 @@ checksum = "767f388e50251da71f95a3737d6db32c9729f9de6427a54fa92bb994d04d793f"
 dependencies = [
  "bech32 0.9.1",
  "bitcoin",
- "lightning-invoice",
- "lightning-types",
+ "lightning-invoice 0.32.0",
+ "lightning-types 0.1.0",
+]
+
+[[package]]
+name = "lightning"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e540fcb289a76826c9c0b078d3dd1f05691972c5a53fb4d3120540862040a147"
+dependencies = [
+ "bech32 0.11.0",
+ "bitcoin",
+ "dnssec-prover",
+ "hashbrown 0.13.2",
+ "libm",
+ "lightning-invoice 0.33.2",
+ "lightning-types 0.2.0",
+ "possiblyrandom",
 ]
 
 [[package]]
@@ -5544,7 +6265,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4734caab73611a2c725f15392565150e4f5a531dd1f239365d01311f7de65d2d"
 dependencies = [
  "bitcoin",
- "lightning",
+ "lightning 0.0.125",
  "lightning-rapid-gossip-sync",
 ]
 
@@ -5556,7 +6277,7 @@ checksum = "ea041135bad736b075ad1123ef0a4793e78da8041386aa7887779fc5c540b94b"
 dependencies = [
  "bitcoin",
  "chunked_transfer",
- "lightning",
+ "lightning 0.0.125",
  "serde_json",
  "tokio",
 ]
@@ -5569,7 +6290,19 @@ checksum = "90ab9f6ea77e20e3129235e62a2e6bd64ed932363df104e864ee65ccffb54a8f"
 dependencies = [
  "bech32 0.9.1",
  "bitcoin",
- "lightning-types",
+ "lightning-types 0.1.0",
+ "serde",
+]
+
+[[package]]
+name = "lightning-invoice"
+version = "0.33.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11209f386879b97198b2bfc9e9c1e5d42870825c6bd4376f17f95357244d6600"
+dependencies = [
+ "bech32 0.11.0",
+ "bitcoin",
+ "lightning-types 0.2.0",
  "serde",
 ]
 
@@ -5581,9 +6314,9 @@ checksum = "175cff5d30b8d3f94ae9772b59f9ca576b1927a6ab60dd773e8c4e0593cd4e95"
 dependencies = [
  "bitcoin",
  "chrono",
- "lightning",
- "lightning-invoice",
- "lightning-types",
+ "lightning 0.0.125",
+ "lightning-invoice 0.32.0",
+ "lightning-types 0.1.0",
  "serde",
  "serde_json",
 ]
@@ -5595,7 +6328,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af2847a19f892f32b9ab5075af25c70370b4cc5842b4f5b53c57092e52a49498"
 dependencies = [
  "bitcoin",
- "lightning",
+ "lightning 0.0.125",
  "tokio",
 ]
 
@@ -5606,7 +6339,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d06283d41eb8e6d4af883cd602d91ab0c5f9e0c9a6be1c944b10e6f47176f20"
 dependencies = [
  "bitcoin",
- "lightning",
+ "lightning 0.0.125",
  "windows-sys 0.48.0",
 ]
 
@@ -5617,7 +6350,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92185313db1075495e5efa3dd6a3b5d4dee63e1496059f58cf65074994718f05"
 dependencies = [
  "bitcoin",
- "lightning",
+ "lightning 0.0.125",
 ]
 
 [[package]]
@@ -5630,7 +6363,7 @@ dependencies = [
  "bitcoin",
  "esplora-client 0.9.0",
  "futures",
- "lightning",
+ "lightning 0.0.125",
 ]
 
 [[package]]
@@ -5642,6 +6375,15 @@ dependencies = [
  "bech32 0.9.1",
  "bitcoin",
  "hex-conservative 0.2.1",
+]
+
+[[package]]
+name = "lightning-types"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cd84d4e71472035903e43caded8ecc123066ce466329ccd5ae537a8d5488c7"
+dependencies = [
+ "bitcoin",
 ]
 
 [[package]]
@@ -5799,6 +6541,28 @@ dependencies = [
  "serde_bytes",
  "sha1_smol",
  "thiserror 1.0.69",
+ "tracing",
+]
+
+[[package]]
+name = "mainline"
+version = "5.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c258b001fa52b7270dc1a239b36a9b608b024e68733648c1757b025204fdc248"
+dependencies = [
+ "crc",
+ "document-features",
+ "dyn-clone",
+ "ed25519-dalek",
+ "flume",
+ "futures-lite",
+ "getrandom 0.2.16",
+ "lru 0.13.0",
+ "serde",
+ "serde_bencode",
+ "serde_bytes",
+ "sha1_smol",
+ "thiserror 2.0.16",
  "tracing",
 ]
 
@@ -5984,12 +6748,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "n0-snafu"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1815107e577a95bfccedb4cfabc73d709c0db6d12de3f14e0f284a8c5036dc4f"
+dependencies = [
+ "anyhow",
+ "btparse",
+ "color-backtrace",
+ "snafu",
+ "tracing-error",
+]
+
+[[package]]
+name = "n0-watcher"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f216d4ebc5fcf9548244803cbb93f488a2ae160feba3706cd17040d69cf7a368"
+dependencies = [
+ "derive_more 1.0.0",
+ "n0-future",
+ "snafu",
+]
+
+[[package]]
 name = "nanorand"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
 dependencies = [
  "getrandom 0.2.16",
+]
+
+[[package]]
+name = "nested_enum_utils"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43fa9161ed44d30e9702fe42bd78693bceac0fed02f647da749f36109023d3a3"
+dependencies = [
+ "proc-macro-crate 3.4.0",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -6041,6 +6841,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74c171cd77b4ee8c7708da746ce392440cb7bcf618d122ec9ecc607b12938bf4"
 dependencies = [
  "anyhow",
+ "byteorder",
+ "libc",
+ "log",
+ "netlink-packet-core",
+ "netlink-packet-utils",
+]
+
+[[package]]
+name = "netlink-packet-route"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0800eae8638a299eaa67476e1c6b6692922273e0f7939fd188fc861c837b9cd2"
+dependencies = [
+ "anyhow",
+ "bitflags 2.9.4",
  "byteorder",
  "libc",
  "log",
@@ -6121,6 +6936,74 @@ dependencies = [
 ]
 
 [[package]]
+name = "netwatch"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67eeaa5f7505c93c5a9b35ba84fd21fb8aa3f24678c76acfe8716af7862fb07a"
+dependencies = [
+ "atomic-waker",
+ "bytes",
+ "cfg_aliases",
+ "derive_more 1.0.0",
+ "iroh-quinn-udp",
+ "js-sys",
+ "libc",
+ "n0-future",
+ "nested_enum_utils",
+ "netdev",
+ "netlink-packet-core",
+ "netlink-packet-route 0.23.0",
+ "netlink-proto",
+ "netlink-sys",
+ "serde",
+ "snafu",
+ "socket2 0.5.10",
+ "time",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "web-sys",
+ "windows 0.59.0",
+ "windows-result 0.3.4",
+ "wmi",
+]
+
+[[package]]
+name = "netwatch"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a829a830199b14989f9bccce6136ab928ab48336ab1f8b9002495dbbbb2edbe"
+dependencies = [
+ "atomic-waker",
+ "bytes",
+ "cfg_aliases",
+ "derive_more 1.0.0",
+ "iroh-quinn-udp",
+ "js-sys",
+ "libc",
+ "n0-future",
+ "n0-watcher",
+ "nested_enum_utils",
+ "netdev",
+ "netlink-packet-core",
+ "netlink-packet-route 0.23.0",
+ "netlink-proto",
+ "netlink-sys",
+ "pin-project-lite",
+ "serde",
+ "snafu",
+ "socket2 0.5.10",
+ "time",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "web-sys",
+ "windows 0.59.0",
+ "windows-result 0.3.4",
+ "wmi",
+]
+
+[[package]]
 name = "nix"
 version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6168,6 +7051,21 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "ntimestamp"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c50f94c405726d3e0095e89e72f75ce7f6587b94a8bd8dc8054b73f65c0fd68c"
+dependencies = [
+ "base32",
+ "document-features",
+ "getrandom 0.2.16",
+ "httpdate",
+ "js-sys",
+ "once_cell",
+ "serde",
 ]
 
 [[package]]
@@ -6614,6 +7512,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pharos"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9567389417feee6ce15dd6527a8a1ecac205ef62c2932bcf3d9f6fc5b78b414"
+dependencies = [
+ "futures",
+ "rustc_version",
+]
+
+[[package]]
 name = "phf"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6712,7 +7620,7 @@ dependencies = [
  "futures",
  "js-sys",
  "lru 0.12.5",
- "mainline",
+ "mainline 2.0.1",
  "self_cell",
  "simple-dns",
  "thiserror 2.0.16",
@@ -6722,6 +7630,38 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "z32",
+]
+
+[[package]]
+name = "pkarr"
+version = "3.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5eb1f2f4311bae1da11f930c804c724c9914cf55ae51a9ee0440fc98826984f7"
+dependencies = [
+ "async-compat",
+ "base32",
+ "bytes",
+ "cfg_aliases",
+ "document-features",
+ "dyn-clone",
+ "ed25519-dalek",
+ "futures-buffered",
+ "futures-lite",
+ "getrandom 0.2.16",
+ "log",
+ "lru 0.13.0",
+ "mainline 5.4.0",
+ "ntimestamp",
+ "reqwest 0.12.23",
+ "self_cell",
+ "serde",
+ "sha1_smol",
+ "simple-dns",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+ "url",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -6835,10 +7775,10 @@ dependencies = [
  "derive_more 1.0.0",
  "futures-lite",
  "futures-util",
- "igd-next",
- "iroh-metrics",
+ "igd-next 0.15.1",
+ "iroh-metrics 0.32.0",
  "libc",
- "netwatch",
+ "netwatch 0.4.0",
  "num_enum",
  "rand 0.8.5",
  "serde",
@@ -6850,6 +7790,77 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "portmapper"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d6db66007eac4a0ec8331d0d20c734bd64f6445d64bbaf0d0a27fea7a054e36"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "derive_more 1.0.0",
+ "futures-lite",
+ "futures-util",
+ "hyper-util",
+ "igd-next 0.16.2",
+ "iroh-metrics 0.34.0",
+ "libc",
+ "nested_enum_utils",
+ "netwatch 0.5.0",
+ "num_enum",
+ "rand 0.8.5",
+ "serde",
+ "smallvec",
+ "snafu",
+ "socket2 0.5.10",
+ "time",
+ "tokio",
+ "tokio-util",
+ "tower-layer",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "portmapper"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d82975dc029c00d566f4e0f61f567d31f0297a290cb5416b5580dd8b4b54ade"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "derive_more 1.0.0",
+ "futures-lite",
+ "futures-util",
+ "hyper-util",
+ "igd-next 0.16.2",
+ "iroh-metrics 0.35.0",
+ "libc",
+ "nested_enum_utils",
+ "netwatch 0.6.0",
+ "num_enum",
+ "rand 0.8.5",
+ "serde",
+ "smallvec",
+ "snafu",
+ "socket2 0.5.10",
+ "time",
+ "tokio",
+ "tokio-util",
+ "tower-layer",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "possiblyrandom"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b122a615d72104fb3d8b26523fdf9232cd8ee06949fb37e4ce3ff964d15dffd"
+dependencies = [
+ "getrandom 0.2.16",
 ]
 
 [[package]]
@@ -6876,6 +7887,7 @@ dependencies = [
  "cobs",
  "embedded-io 0.4.0",
  "embedded-io 0.6.1",
+ "heapless",
  "postcard-derive",
  "serde",
 ]
@@ -7661,7 +8673,7 @@ version = "0.0.4"
 dependencies = [
  "anyhow",
  "fedimint-build 0.9.0-alpha",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimintd",
  "tokio",
 ]
@@ -7673,9 +8685,9 @@ dependencies = [
  "anyhow",
  "fedimint-build 0.9.0-alpha",
  "fedimint-cli",
- "fedimint-core",
+ "fedimint-core 0.7.2",
  "fedimint-lnv2-remote-client",
- "fedimint-mint-client",
+ "fedimint-mint-client 0.8.1",
  "fedimint-wallet-client",
  "tokio",
 ]
@@ -8315,6 +9327,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "simdutf8"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
 name = "simple-dns"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8361,6 +9379,28 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+
+[[package]]
+name = "snafu"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e84b3f4eacbf3a1ce05eac6763b4d629d60cbc94d632e4092c54ade71f1e1a2"
+dependencies = [
+ "backtrace",
+ "snafu-derive",
+]
+
+[[package]]
+name = "snafu-derive"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1c97747dbf44bb1ca44a561ece23508e99cb592e862f22222dcf42f51d1e451"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
 
 [[package]]
 name = "socket2"
@@ -8542,6 +9582,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "strum"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
+dependencies = [
+ "strum_macros 0.27.2",
+]
+
+[[package]]
 name = "strum_macros"
 version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8564,6 +9613,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
+ "syn 2.0.106",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
  "syn 2.0.106",
 ]
 
@@ -8746,6 +9807,15 @@ dependencies = [
  "once_cell",
  "rustix 1.1.2",
  "windows-sys 0.61.0",
+]
+
+[[package]]
+name = "termcolor"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
+dependencies = [
+ "winapi-util",
 ]
 
 [[package]]
@@ -9043,6 +10113,28 @@ dependencies = [
  "futures-util",
  "pin-project-lite",
  "tokio",
+]
+
+[[package]]
+name = "tokio-websockets"
+version = "0.11.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fcaf159b4e7a376b05b5bfd77bfd38f3324f5fce751b4213bfc7eaa47affb4e"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "futures-core",
+ "futures-sink",
+ "getrandom 0.3.3",
+ "http 1.3.1",
+ "httparse",
+ "rand 0.9.2",
+ "ring 0.17.14",
+ "rustls-pki-types",
+ "simdutf8",
+ "tokio",
+ "tokio-rustls 0.26.3",
+ "tokio-util",
 ]
 
 [[package]]
@@ -10013,6 +11105,16 @@ checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
 dependencies = [
  "once_cell",
  "valuable",
+]
+
+[[package]]
+name = "tracing-error"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b1581020d7a273442f5b45074a6a57d5757ad0a47dac0e9f0bd57b81936f3db"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -11049,6 +12151,25 @@ name = "writeable"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea2f10b9bb0928dfb1b42b65e1f9e36f7f54dbdf08457afefb38afcdec4fa2bb"
+
+[[package]]
+name = "ws_stream_wasm"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c173014acad22e83f16403ee360115b38846fe754e735c5d9d3803fe70c6abc"
+dependencies = [
+ "async_io_stream",
+ "futures",
+ "js-sys",
+ "log",
+ "pharos",
+ "rustc_version",
+ "send_wrapper 0.6.0",
+ "thiserror 2.0.16",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
 
 [[package]]
 name = "wyz"
