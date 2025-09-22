@@ -2524,7 +2524,7 @@ dependencies = [
 
 [[package]]
 name = "fedimint-cli"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "fedimint-build",
@@ -2935,7 +2935,7 @@ dependencies = [
 
 [[package]]
 name = "fedimint-lnv2-remote-client"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -2963,7 +2963,7 @@ dependencies = [
 
 [[package]]
 name = "fedimint-lnv2-remote-tests"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "bincode 1.3.3",
@@ -3520,7 +3520,7 @@ dependencies = [
 
 [[package]]
 name = "fedimintd"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "fedimint-build",
