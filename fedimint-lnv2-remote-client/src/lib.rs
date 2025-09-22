@@ -21,7 +21,6 @@ use fedimint_api_client::api::DynModuleApi;
 use fedimint_client_module::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client_module::module::recovery::NoModuleBackup;
 use fedimint_client_module::module::{ClientContext, ClientModule};
-use fedimint_client_module::sm::util::MapStateTransitions;
 use fedimint_client_module::sm::{Context, DynState, ModuleNotifier, State, StateTransition};
 use fedimint_client_module::transaction::{ClientInput, ClientInputBundle};
 use fedimint_client_module::{DynGlobalClientContext, sm_enum_variant_translation};
