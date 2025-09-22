@@ -11,7 +11,7 @@ resolver = "3"
 authors = ["tvolk131"]
 edition = "2024"
 readme = "README.md"
-repository = "https://github.com/lightningvend/vendimint"
+repository = "https://github.com/tvolk131/fedimint-lnv2-remote-client"
 version = "0.0.5"
 
 [workspace.dependencies]
