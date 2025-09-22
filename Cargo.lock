@@ -1958,7 +1958,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68a27f0a2651f507903d67f8fb0688291e3e69f70381cdb5ee9729366f795f80"
 dependencies = [
  "heck 0.5.0",
- "indexmap 2.11.4",
+ "indexmap 1.9.3",
  "itertools 0.13.0",
  "proc-macro-crate 3.4.0",
  "proc-macro2",
@@ -2638,7 +2638,7 @@ dependencies = [
 [[package]]
 name = "fedimint-build"
 version = "0.9.0-alpha"
-source = "git+https://github.com/fedimint/fedimint#4c115e75d48038165411c5b61e80f18f10c77693"
+source = "git+https://github.com/fedimint/fedimint#9b2f1f7c67383e6cc1019721be86dd3fac959aed"
 dependencies = [
  "serde_json",
 ]
@@ -4205,12 +4205,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hashbrown"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
-
-[[package]]
 name = "hashlink"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4860,7 +4854,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b0f83760fb341a774ed326568e19f5a863af4a952def8c39f9ab92fd95b88e5"
 dependencies = [
  "equivalent",
- "hashbrown 0.16.0",
+ "hashbrown 0.15.5",
  "serde",
  "serde_core",
 ]
