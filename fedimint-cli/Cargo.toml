@@ -1,9 +1,11 @@
 [package]
-name = "roastr-cli"
-version = "0.0.4"
-authors = ["tvolk131"]
-edition = "2024"
-description = "fedimint-cli with custom module set"
+name = "fedimint-cli"
+publish = false
+authors = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
 
 [[bin]]
 name = "fedimint-cli"

@@ -1,10 +1,13 @@
 [package]
 name = "fedimint-lnv2-remote-client"
-version = "0.0.4"
-authors = ["tvolk131"]
-edition = "2024"
-description = "A federated remote lightning receive client."
+description = "Fedimint remote lightning receive client."
 license = "MIT"
+publish = true
+authors = { workspace = true }
+edition = { workspace = true }
+readme = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
 
 [lib]
 name = "fedimint_lnv2_remote_client"
