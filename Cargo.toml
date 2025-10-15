@@ -32,7 +32,7 @@ async-trait = "0.1.89"
 aquamarine = "0.5.0"
 bitcoin = { version = "0.32.7", features = ["serde"] }
 anyhow = "1.0.99"
-clap = { version = "4.5.47", features = [
+clap = { version = "4.5.49", features = [
     "derive",
     "std",
     "help",
