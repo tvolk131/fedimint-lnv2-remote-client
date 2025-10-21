@@ -15,7 +15,7 @@ repository = "https://github.com/tvolk131/fedimint-lnv2-remote-client"
 version = "0.0.5"
 
 [workspace.dependencies]
-fedimintd = "0.8.1"
+fedimintd = "0.9.0"
 fedimint-api-client = "0.8.1"
 fedimint-cli = "0.8.1"
 fedimint-core = "0.8.1"
