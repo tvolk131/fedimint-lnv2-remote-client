@@ -11,7 +11,7 @@ use substring::Substring;
 use tracing::info;
 
 const PAYMENT_AMOUNT: Amount = Amount::from_msats(1_000_000);
-const POST_PAYMENT_AMOUNT: Amount = Amount::from_msats(993_901);
+const POST_PAYMENT_AMOUNT: Amount = Amount::from_msats(989_698);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
