@@ -99,10 +99,10 @@ async fn test_happy_path(
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), 1);
+
+    claim_contracts(&claimer_client, &claimable_contracts).await?;
+
     let claimable_contract = claimable_contracts[0].clone();
-
-    claim_contract(&claimer_client, &claimable_contract).await?;
-
     remove_claimed_contract(&receiver_client, claimable_contract.contract.contract_id()).await?;
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
@@ -181,9 +181,9 @@ async fn test_syncing_many_payments(
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), INVOICES_COUNT);
 
-    for claimable_contract in claimable_contracts.iter().take(INVOICES_COUNT) {
-        claim_contract(&claimer_client, claimable_contract).await?;
+    claim_contracts(&claimer_client, &claimable_contracts).await?;
 
+    for claimable_contract in claimable_contracts {
         // TODO: Test removing contracts in bulk. This needs to be piped through the
         // CLI.
         remove_claimed_contract(&receiver_client, claimable_contract.contract.contract_id())
@@ -229,10 +229,9 @@ async fn test_idempotency(
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
     assert_eq!(claimable_contracts.len(), 1);
-    let claimable_contract = claimable_contracts[0].clone();
 
     for _ in 0..20 {
-        claim_contract(&claimer_client, &claimable_contract).await?;
+        claim_contracts(&claimer_client, &claimable_contracts).await?;
     }
 
     assert_eq!(
@@ -407,16 +406,16 @@ async fn remove_claimed_contract(client: &Client, contract_id: ContractId) -> an
     .await
 }
 
-async fn claim_contract(
+async fn claim_contracts(
     client: &Client,
-    claimable_contract: &ClaimableContract,
+    claimable_contracts: &[ClaimableContract],
 ) -> anyhow::Result<()> {
     cmd!(
         client,
         "module",
         "lnv2",
-        "claim-contract",
-        hex::encode(bincode::serialize(claimable_contract).unwrap())
+        "claim-contracts",
+        hex::encode(bincode::serialize(claimable_contracts).unwrap())
     )
     .run()
     .await

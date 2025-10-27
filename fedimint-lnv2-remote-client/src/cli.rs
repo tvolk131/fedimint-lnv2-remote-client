@@ -42,8 +42,8 @@ enum Opts {
         #[arg(long)]
         contract_id: sha256::Hash,
     },
-    ClaimContract {
-        claimable_contract_hex: String,
+    ClaimContracts {
+        claimable_contracts_hex: String,
     },
     /// Gateway subcommands
     #[command(subcommand)]
@@ -95,12 +95,12 @@ pub(crate) async fn handle_cli_command(
                 .remove_claimed_contracts(vec![ContractId(contract_id)])
                 .await,
         ),
-        Opts::ClaimContract {
-            claimable_contract_hex,
+        Opts::ClaimContracts {
+            claimable_contracts_hex,
         } => json(
             lightning
-                .claim_contract(
-                    bincode::deserialize(&hex::decode(claimable_contract_hex).unwrap()).unwrap(),
+                .claim_contracts(
+                    bincode::deserialize(&hex::decode(claimable_contracts_hex).unwrap()).unwrap(),
                 )
                 .await?,
         ),
