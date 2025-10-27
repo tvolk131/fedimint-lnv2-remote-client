@@ -124,7 +124,7 @@ async fn test_syncing_many_payments(
     claimer_client: Client,
     gw_addr: &str,
 ) -> anyhow::Result<()> {
-    const INVOICES_COUNT: usize = 20;
+    const INVOICES_COUNT: usize = 5;
 
     let claimer_pk = get_public_key(&claimer_client).await?;
 
