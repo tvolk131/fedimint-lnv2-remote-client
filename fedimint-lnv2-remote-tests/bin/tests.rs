@@ -188,6 +188,12 @@ async fn test_syncing_many_payments(
         // CLI.
         remove_claimed_contract(&receiver_client, claimable_contract.contract.contract_id())
             .await?;
+
+        info!("Removed contract!");
+        info!(
+            "Updated balance: {}",
+            claimer_client.balance().await.unwrap()
+        );
     }
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
