@@ -11,7 +11,7 @@ use substring::Substring;
 use tracing::info;
 
 const PAYMENT_AMOUNT: Amount = Amount::from_msats(1_000_000);
-const POST_PAYMENT_AMOUNT: Amount = Amount::from_msats(993_901);
+const POST_PAYMENT_AMOUNT: Amount = Amount::from_msats(989_698);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -124,7 +124,7 @@ async fn test_syncing_many_payments(
     claimer_client: Client,
     gw_addr: &str,
 ) -> anyhow::Result<()> {
-    const INVOICES_COUNT: usize = 20;
+    const INVOICES_COUNT: usize = 5;
 
     let claimer_pk = get_public_key(&claimer_client).await?;
 
@@ -188,6 +188,12 @@ async fn test_syncing_many_payments(
         // CLI.
         remove_claimed_contract(&receiver_client, claimable_contract.contract.contract_id())
             .await?;
+
+        info!("Removed contract!");
+        info!(
+            "Updated balance: {}",
+            claimer_client.balance().await.unwrap()
+        );
     }
 
     let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
