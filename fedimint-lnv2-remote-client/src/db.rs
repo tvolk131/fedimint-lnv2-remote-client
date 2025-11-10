@@ -9,6 +9,7 @@ use fedimint_lnv2_common::contracts::IncomingContract;
 pub enum DbKeyPrefix {
     UnfundedContract = 0xb1,
     FundedContract = 0xb2,
+    ClaimedContract = 0xb3,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
@@ -48,3 +49,12 @@ pub struct FundedContractInfo {
     pub claimer_pk: PublicKey,
     pub outpoint: OutPoint,
 }
+
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub struct ClaimedContractKey(pub ContractId);
+
+impl_db_record!(
+    key = ClaimedContractKey,
+    value = (),
+    db_prefix = DbKeyPrefix::ClaimedContract,
+);

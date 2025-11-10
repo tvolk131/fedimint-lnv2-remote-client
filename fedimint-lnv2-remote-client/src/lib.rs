@@ -1,4 +1,5 @@
 #![deny(clippy::pedantic)]
+#![allow(clippy::enum_variant_names)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(clippy::module_name_repetitions)]
@@ -16,7 +17,10 @@ use std::sync::Arc;
 use async_stream::stream;
 use bitcoin::hashes::{Hash, sha256};
 use bitcoin::secp256k1;
-use db::{FundedContractKey, FundedContractKeyPrefix, UnfundedContractInfo, UnfundedContractKey};
+use db::{
+    ClaimedContractKey, FundedContractKey, FundedContractKeyPrefix, UnfundedContractInfo,
+    UnfundedContractKey,
+};
 use fedimint_api_client::api::DynModuleApi;
 use fedimint_client_module::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client_module::module::recovery::NoModuleBackup;
@@ -423,6 +427,18 @@ impl LightningClientModule {
         &self,
         claimable_contract: ClaimableContract,
     ) -> anyhow::Result<()> {
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+
+        let key = ClaimedContractKey(claimable_contract.contract.contract_id());
+
+        let contract_already_claimed = dbtx.get_value(&key).await.is_some();
+
+        if contract_already_claimed {
+            return Ok(());
+        }
+
+        dbtx.insert_new_entry(&key, &()).await;
+
         let operation_id = OperationId::from_encodable(&claimable_contract.contract);
 
         // TODO: Don't unwrap here.
@@ -439,8 +455,6 @@ impl LightningClientModule {
             keys: vec![claim_keypair],
         };
 
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
-
         let change_range = self
             .client_ctx
             .claim_inputs(
@@ -453,17 +467,14 @@ impl LightningClientModule {
 
         dbtx.commit_tx_result().await?;
 
-        // TODO: If this returns an error, it either means that the contract
-        // was already claimed, or the federation is malicious. Right now we
-        // don't distinguish between these cases and assume the contract was
-        // already claimed. We should distinguish between these cases in the
-        // future. To do this, we could either:
-        // 1. Add a claim state machine
-        // 2. Store a list of claimed contracts in the module db
-        let _ = self
-            .client_ctx
+        // If this returns an error, it either means that the contract
+        // was already claimed, or the federation is malicious. Since
+        // we're storing the IDs of the contracts we've claimed, the
+        // former should only be possible if an improper recovery has
+        // occurred.
+        self.client_ctx
             .await_primary_module_outputs(operation_id, change_range.into_iter().collect())
-            .await;
+            .await?;
 
         Ok(())
     }
