@@ -423,43 +423,54 @@ impl LightningClientModule {
             .expect("Autocommit has no retry limit");
     }
 
-    pub async fn claim_contract(
+    pub async fn claim_contracts(
         &self,
-        claimable_contract: ClaimableContract,
+        claimable_contracts: Vec<ClaimableContract>,
     ) -> anyhow::Result<()> {
+        let operation_id = OperationId::from_encodable(
+            &claimable_contracts
+                .iter()
+                .map(|c| c.contract.clone())
+                .collect::<Vec<_>>(),
+        );
+
         let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
 
-        let key = ClaimedContractKey(claimable_contract.contract.contract_id());
+        let mut client_inputs = Vec::new();
 
-        let contract_already_claimed = dbtx.get_value(&key).await.is_some();
+        for claimable_contract in claimable_contracts {
+            let key = ClaimedContractKey(claimable_contract.contract.contract_id());
 
-        if contract_already_claimed {
-            return Ok(());
+            let contract_already_claimed = dbtx.get_value(&key).await.is_some();
+
+            if !contract_already_claimed {
+                dbtx.insert_new_entry(&key, &()).await;
+
+                // TODO: Don't unwrap here.
+                let (claim_keypair, agg_decryption_key) = self
+                    .recover_contract_keys(&claimable_contract.contract)
+                    .unwrap();
+
+                client_inputs.push(ClientInput::<LightningInput> {
+                    input: LightningInput::V0(LightningInputV0::Incoming(
+                        claimable_contract.outpoint,
+                        agg_decryption_key,
+                    )),
+                    amount: claimable_contract.contract.commitment.amount,
+                    keys: vec![claim_keypair],
+                });
+            }
         }
 
-        dbtx.insert_new_entry(&key, &()).await;
-
-        let operation_id = OperationId::from_encodable(&claimable_contract.contract);
-
-        // TODO: Don't unwrap here.
-        let (claim_keypair, agg_decryption_key) = self
-            .recover_contract_keys(&claimable_contract.contract)
-            .unwrap();
-
-        let client_input = ClientInput::<LightningInput> {
-            input: LightningInput::V0(LightningInputV0::Incoming(
-                claimable_contract.outpoint,
-                agg_decryption_key,
-            )),
-            amount: claimable_contract.contract.commitment.amount,
-            keys: vec![claim_keypair],
-        };
+        if client_inputs.is_empty() {
+            return Ok(());
+        }
 
         let change_range = self
             .client_ctx
             .claim_inputs(
                 &mut dbtx.to_ref_nc(),
-                ClientInputBundle::new_no_sm(vec![client_input]),
+                ClientInputBundle::new_no_sm(client_inputs),
                 operation_id,
             )
             .await
@@ -467,11 +478,11 @@ impl LightningClientModule {
 
         dbtx.commit_tx_result().await?;
 
-        // If this returns an error, it either means that the contract
-        // was already claimed, or the federation is malicious. Since
-        // we're storing the IDs of the contracts we've claimed, the
-        // former should only be possible if an improper recovery has
-        // occurred.
+        // If this returns an error, it either means that one of the
+        // contracts was already claimed, or the federation is malicious.
+        // Since we're storing the IDs of the contracts we've claimed,
+        // the former should only be possible if an improper recovery
+        // has occurred.
         self.client_ctx
             .await_primary_module_outputs(operation_id, change_range.into_iter().collect())
             .await?;
