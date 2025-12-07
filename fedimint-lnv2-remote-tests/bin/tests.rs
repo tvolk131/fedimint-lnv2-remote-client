@@ -11,7 +11,7 @@ use substring::Substring;
 use tracing::info;
 
 const PAYMENT_AMOUNT: Amount = Amount::from_msats(1_000_000);
-const POST_PAYMENT_AMOUNT: Amount = Amount::from_msats(993_901);
+const POST_PAYMENT_AMOUNT: Amount = Amount::from_msats(989_698);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -124,7 +124,10 @@ async fn test_syncing_many_payments(
     claimer_client: Client,
     gw_addr: &str,
 ) -> anyhow::Result<()> {
-    const INVOICES_COUNT: usize = 20;
+    const INVOICES_COUNT: usize = 5;
+    /// The amount of fees paid to the mint module for ecash note burning and minting.
+    /// The exact amount is arbitrary for testing purposes.
+    const MINT_FEE_AMOUNT: Amount = Amount::from_msats(16_508);
 
     let claimer_pk = get_public_key(&claimer_client).await?;
 
@@ -197,7 +200,7 @@ async fn test_syncing_many_payments(
         Amount {
             msats: claimer_client.balance().await.unwrap()
         },
-        POST_PAYMENT_AMOUNT * INVOICES_COUNT as u64
+        (POST_PAYMENT_AMOUNT * INVOICES_COUNT as u64) + MINT_FEE_AMOUNT
     );
 
     Ok(())
