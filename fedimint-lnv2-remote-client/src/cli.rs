@@ -97,13 +97,16 @@ pub(crate) async fn handle_cli_command(
         ),
         Opts::ClaimContracts {
             claimable_contracts_hex,
-        } => json(
-            lightning
-                .claim_contracts(
-                    bincode::deserialize(&hex::decode(claimable_contracts_hex).unwrap()).unwrap(),
-                )
-                .await?,
-        ),
+        } => {
+            let claimable_contracts = bincode::serde::decode_from_slice(
+                &hex::decode(claimable_contracts_hex).unwrap(),
+                bincode::config::standard(),
+            )
+            .unwrap()
+            .0;
+
+            json(lightning.claim_contracts(claimable_contracts).await?)
+        }
         Opts::Gateways(gateway_opts) => match gateway_opts {
             GatewaysOpts::List { peer } => match peer {
                 Some(peer) => json(lightning.module_api.gateways_from_peer(peer).await?),

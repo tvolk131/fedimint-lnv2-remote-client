@@ -413,12 +413,16 @@ async fn claim_contracts(
     client: &Client,
     claimable_contracts: &[ClaimableContract],
 ) -> anyhow::Result<()> {
+    let claimable_contracts_hex = hex::encode(
+        bincode::serde::encode_to_vec(claimable_contracts, bincode::config::standard()).unwrap(),
+    );
+
     cmd!(
         client,
         "module",
         "lnv2",
         "claim-contracts",
-        hex::encode(bincode::serialize(claimable_contracts).unwrap())
+        claimable_contracts_hex
     )
     .run()
     .await

@@ -50,8 +50,8 @@ use fedimint_lnv2_common::{
 };
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
+use rand::rng;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 use secp256k1::{Keypair, PublicKey, Scalar, ecdh};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -206,7 +206,8 @@ impl ClientModule for LightningClientModule {
 }
 
 fn generate_ephemeral_tweak(static_pk: PublicKey) -> ([u8; 32], PublicKey) {
-    let keypair = Keypair::new(secp256k1::SECP256K1, &mut rand::thread_rng());
+    // TODO: Use top-level `rand` rather than `secp256k1::rand` once we're fully on v0.9.
+    let keypair = Keypair::new(secp256k1::SECP256K1, &mut secp256k1::rand::thread_rng());
 
     let tweak = ecdh::SharedSecret::new(&static_pk, &keypair.secret_key());
 
@@ -248,7 +249,7 @@ impl LightningClientModule {
             return Err(SelectGatewayError::NoVettedGateways);
         }
 
-        gateways.shuffle(&mut thread_rng());
+        gateways.shuffle(&mut rng());
 
         for gateway in gateways {
             if let Ok(Some(routing_info)) = self.routing_info(&gateway).await {

@@ -12,7 +12,7 @@ use fedimint_lnv2_common::ContractId;
 use fedimint_lnv2_common::endpoint_constants::{
     AWAIT_INCOMING_CONTRACT_ENDPOINT, GATEWAYS_ENDPOINT,
 };
-use rand::seq::SliceRandom;
+use rand::{rng, seq::SliceRandom};
 
 #[apply(async_trait_maybe_send!)]
 pub trait LightningFederationApi {
@@ -66,7 +66,7 @@ where
 
         // Shuffling the gateways ensures that payments are distributed over the
         // gateways evenly.
-        union.shuffle(&mut rand::thread_rng());
+        union.shuffle(&mut rng());
 
         union.sort_by_cached_key(|r| {
             gateways
