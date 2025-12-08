@@ -30,7 +30,7 @@ devimint = "0.9.0"
 async-stream = "0.3.6"
 async-trait = "0.1.89"
 aquamarine = "0.6.0"
-bitcoin = { version = "0.32.7", features = ["serde"] }
+bitcoin = { version = "0.32.8", features = ["serde"] }
 anyhow = "1.0.99"
 clap = { version = "4.5.49", features = [
     "derive",
