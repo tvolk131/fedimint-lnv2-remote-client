@@ -52,7 +52,7 @@ serde_json = { version = "1.0.148", features = ["preserve_order"] }
 thiserror = "2.0.17"
 tikv-jemallocator = "0.6.0"
 tokio = { version = "1.49.0", features = ["full", "tracing"] }
-url = "2.5.4"
+url = "2.5.8"
 
 # TODO: Figure out what this does and if it's needed.
 # It's a copy/paste from roastr.
