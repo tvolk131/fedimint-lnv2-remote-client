@@ -524,9 +524,9 @@ impl LightningClientModule {
         &self,
         claimable_contracts: Vec<ClaimableContract>,
     ) -> anyhow::Result<()> {
-        for claimable_contract in claimable_contracts {
+        for claimable_contract in &claimable_contracts {
             // Try to claim each contract individually, ignoring errors for already-claimed contracts
-            match self.try_claim_contracts_batch(std::slice::from_ref(&claimable_contract)).await {
+            match self.try_claim_contracts_batch(std::slice::from_ref(claimable_contract)).await {
                 Ok(()) => {
                     tracing::debug!("Successfully claimed contract {:?}", claimable_contract.contract.contract_id());
                 }
