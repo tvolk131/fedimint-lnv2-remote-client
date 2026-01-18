@@ -24,6 +24,7 @@ pub trait LightningFederationApi {
 
     async fn gateways(&self) -> FederationResult<Vec<SafeUrl>>;
 
+    #[allow(dead_code)]
     async fn gateways_from_peer(&self, peer: PeerId) -> PeerResult<Vec<SafeUrl>>;
 }
 

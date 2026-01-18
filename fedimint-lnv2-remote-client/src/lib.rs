@@ -513,7 +513,8 @@ impl LightningClientModule {
         // Second transaction: Mark contracts as claimed only after fedimint transaction succeeds
         let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
         for contract_id in contract_ids {
-            dbtx.insert_new_entry(&ClaimedContractKey(contract_id), &()).await;
+            dbtx.insert_new_entry(&ClaimedContractKey(contract_id), &())
+                .await;
         }
         dbtx.commit_tx_result().await?;
 
@@ -526,9 +527,15 @@ impl LightningClientModule {
     ) -> anyhow::Result<()> {
         for claimable_contract in &claimable_contracts {
             // Try to claim each contract individually, ignoring errors for already-claimed contracts
-            match self.try_claim_contracts_batch(std::slice::from_ref(claimable_contract)).await {
+            match self
+                .try_claim_contracts_batch(std::slice::from_ref(claimable_contract))
+                .await
+            {
                 Ok(()) => {
-                    tracing::debug!("Successfully claimed contract {:?}", claimable_contract.contract.contract_id());
+                    tracing::debug!(
+                        "Successfully claimed contract {:?}",
+                        claimable_contract.contract.contract_id()
+                    );
                 }
                 Err(e) => {
                     tracing::debug!(
