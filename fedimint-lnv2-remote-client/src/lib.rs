@@ -428,6 +428,22 @@ impl LightningClientModule {
         &self,
         claimable_contracts: Vec<ClaimableContract>,
     ) -> anyhow::Result<()> {
+        // First, try to claim all contracts in a batch
+        match self.try_claim_contracts_batch(&claimable_contracts).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                // If batch claim fails, fall back to claiming contracts individually
+                // This handles the case where some contracts may have already been claimed
+                tracing::debug!("Batch claim failed: {e:?}. Falling back to individual claims.");
+                self.claim_contracts_individually(claimable_contracts).await
+            }
+        }
+    }
+
+    async fn try_claim_contracts_batch(
+        &self,
+        claimable_contracts: &[ClaimableContract],
+    ) -> anyhow::Result<()> {
         let operation_id = OperationId::from_encodable(
             &claimable_contracts
                 .iter()
@@ -435,59 +451,93 @@ impl LightningClientModule {
                 .collect::<Vec<_>>(),
         );
 
-        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+        // First transaction: Check which contracts need to be claimed and submit the fedimint transaction
+        let contract_ids_to_mark = {
+            let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
 
-        let mut client_inputs = Vec::new();
+            let mut client_inputs = Vec::new();
+            let mut contract_ids = Vec::new();
 
-        for claimable_contract in claimable_contracts {
-            let key = ClaimedContractKey(claimable_contract.contract.contract_id());
+            for claimable_contract in claimable_contracts {
+                let key = ClaimedContractKey(claimable_contract.contract.contract_id());
 
-            let contract_already_claimed = dbtx.get_value(&key).await.is_some();
+                let contract_already_claimed = dbtx.get_value(&key).await.is_some();
 
-            if !contract_already_claimed {
-                dbtx.insert_new_entry(&key, &()).await;
+                if !contract_already_claimed {
+                    contract_ids.push(claimable_contract.contract.contract_id());
 
-                // TODO: Don't unwrap here.
-                let (claim_keypair, agg_decryption_key) = self
-                    .recover_contract_keys(&claimable_contract.contract)
-                    .unwrap();
+                    // TODO: Don't unwrap here.
+                    let (claim_keypair, agg_decryption_key) = self
+                        .recover_contract_keys(&claimable_contract.contract)
+                        .unwrap();
 
-                client_inputs.push(ClientInput::<LightningInput> {
-                    input: LightningInput::V0(LightningInputV0::Incoming(
-                        claimable_contract.outpoint,
-                        agg_decryption_key,
-                    )),
-                    amount: claimable_contract.contract.commitment.amount,
-                    keys: vec![claim_keypair],
-                });
+                    client_inputs.push(ClientInput::<LightningInput> {
+                        input: LightningInput::V0(LightningInputV0::Incoming(
+                            claimable_contract.outpoint,
+                            agg_decryption_key,
+                        )),
+                        amount: claimable_contract.contract.commitment.amount,
+                        keys: vec![claim_keypair],
+                    });
+                }
             }
-        }
 
-        if client_inputs.is_empty() {
-            return Ok(());
-        }
+            if client_inputs.is_empty() {
+                return Ok(());
+            }
 
-        let change_range = self
-            .client_ctx
-            .claim_inputs(
-                &mut dbtx.to_ref_nc(),
-                ClientInputBundle::new_no_sm(client_inputs),
-                operation_id,
-            )
-            .await
-            .expect("Cannot claim input, additional funding needed");
+            let change_range = self
+                .client_ctx
+                .claim_inputs(
+                    &mut dbtx.to_ref_nc(),
+                    ClientInputBundle::new_no_sm(client_inputs),
+                    operation_id,
+                )
+                .await
+                .expect("Cannot claim input, additional funding needed");
 
-        dbtx.commit_tx_result().await?;
+            // Commit the transaction that submits the fedimint claim
+            dbtx.commit_tx_result().await?;
 
-        // If this returns an error, it either means that one of the
-        // contracts was already claimed, or the federation is malicious.
-        // Since we're storing the IDs of the contracts we've claimed,
-        // the former should only be possible if an improper recovery
-        // has occurred.
+            (contract_ids, change_range)
+        };
+
+        let (contract_ids, change_range) = contract_ids_to_mark;
+
+        // Wait for the fedimint transaction to complete
+        // If this fails (e.g., contract already claimed), we haven't marked anything as claimed yet
         self.client_ctx
             .await_primary_module_outputs(operation_id, change_range.into_iter().collect())
             .await?;
 
+        // Second transaction: Mark contracts as claimed only after fedimint transaction succeeds
+        let mut dbtx = self.client_ctx.module_db().begin_transaction().await;
+        for contract_id in contract_ids {
+            dbtx.insert_new_entry(&ClaimedContractKey(contract_id), &()).await;
+        }
+        dbtx.commit_tx_result().await?;
+
+        Ok(())
+    }
+
+    async fn claim_contracts_individually(
+        &self,
+        claimable_contracts: Vec<ClaimableContract>,
+    ) -> anyhow::Result<()> {
+        for claimable_contract in claimable_contracts {
+            // Try to claim each contract individually, ignoring errors for already-claimed contracts
+            match self.try_claim_contracts_batch(&[claimable_contract.clone()]).await {
+                Ok(()) => {
+                    tracing::debug!("Successfully claimed contract {:?}", claimable_contract.contract.contract_id());
+                }
+                Err(e) => {
+                    tracing::debug!(
+                        "Failed to claim contract {:?}: {e:?}. It may have already been claimed.",
+                        claimable_contract.contract.contract_id()
+                    );
+                }
+            }
+        }
         Ok(())
     }
 
