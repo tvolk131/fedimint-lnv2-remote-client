@@ -108,18 +108,21 @@ pub struct LightningRemoteClientInit {
 impl Default for LightningRemoteClientInit {
     fn default() -> Self {
         use fedimint_connectors::ConnectorRegistry;
+        use std::sync::LazyLock;
         
-        // Create a runtime to build the connector registry
-        let connectors = tokio::runtime::Runtime::new()
-            .expect("Failed to create runtime")
-            .block_on(async {
-                ConnectorRegistry::build_from_client_defaults()
-                    .bind()
-                    .await
-                    .expect("Failed to build connector registry")
-            });
+        // Use LazyLock to ensure connectors are initialized only once
+        static CONNECTORS: LazyLock<ConnectorRegistry> = LazyLock::new(|| {
+            tokio::runtime::Runtime::new()
+                .expect("Failed to create runtime for connector registry initialization")
+                .block_on(async {
+                    ConnectorRegistry::build_from_client_defaults()
+                        .bind()
+                        .await
+                        .expect("Failed to build connector registry")
+                })
+        });
         
-        let gateway_api = GatewayApi::new(None, connectors);
+        let gateway_api = GatewayApi::new(None, CONNECTORS.clone());
         
         LightningRemoteClientInit {
             gateway_conn: Arc::new(RealGatewayConnection { api: gateway_api }),
@@ -207,7 +210,11 @@ impl ClientModule for LightningClientModule {
             let fee = self.cfg.fee_consensus.fee(*amount);
             fee_amounts = fee_amounts
                 .checked_add(&Amounts::new_custom(*unit, fee))
-                .expect("Fee calculation overflow");
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Input fee calculation overflow for unit {unit:?}, amount {amount}, fee {fee}"
+                    )
+                });
         }
         Some(fee_amounts)
     }
@@ -223,7 +230,11 @@ impl ClientModule for LightningClientModule {
             let fee = self.cfg.fee_consensus.fee(*amount);
             fee_amounts = fee_amounts
                 .checked_add(&Amounts::new_custom(*unit, fee))
-                .expect("Fee calculation overflow");
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Output fee calculation overflow for unit {unit:?}, amount {amount}, fee {fee}"
+                    )
+                });
         }
         Some(fee_amounts)
     }
