@@ -17,6 +17,7 @@ version = "0.0.6"
 [workspace.dependencies]
 fedimintd = "0.9.0"
 fedimint-api-client = "0.9.0"
+fedimint-build = "0.9.0"
 fedimint-cli = "0.9.0"
 fedimint-core = "0.9.0"
 fedimint-server = "0.9.0"
@@ -24,12 +25,15 @@ fedimint-client = "0.9.0"
 fedimint-client-module = "0.9.0"
 fedimint-lnv2-common = "0.9.0"
 fedimint-logging = "0.9.0"
+fedimint-mint-client = "0.9.0"
 fedimint-tpe = "0.9.0"
+fedimint-wallet-client = "0.9.0"
 devimint = "0.9.0"
 
 async-stream = "0.3.6"
 async-trait = "0.1.89"
 aquamarine = "0.6.0"
+bincode = { version = "2.0.1", features = ["serde"] }
 bitcoin = { version = "0.32.8", features = ["serde"] }
 anyhow = "1.0.99"
 clap = { version = "4.5.54", features = [
@@ -43,12 +47,14 @@ clap = { version = "4.5.54", features = [
 ], default-features = false }
 futures = "0.3.28"
 erased-serde = "0.4.9"
+hex = "0.4.3"
 lightning-invoice = "0.33.2"
 tracing = "0.1.44"
 rand = "0.9.2"
 secp256k1 = "0.29.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149", features = ["preserve_order"] }
+substring = "1.4.5"
 thiserror = "2.0.18"
 tikv-jemallocator = "0.6.0"
 tokio = { version = "1.49.0", features = ["full", "tracing"] }
