@@ -29,7 +29,9 @@ erased-serde = { workspace = true }
 fedimint-api-client = { workspace = true }
 fedimint-client = { workspace = true }
 fedimint-client-module = { workspace = true }
+fedimint-connectors = { workspace = true }
 fedimint-core = { workspace = true }
+fedimint-ln-common = { workspace = true }
 fedimint-lnv2-common = { workspace = true }
 fedimint-tpe = { workspace = true }
 futures = { workspace = true }
@@ -38,5 +40,6 @@ lightning-invoice = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

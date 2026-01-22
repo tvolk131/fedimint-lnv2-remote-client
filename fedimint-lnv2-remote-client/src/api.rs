@@ -1,9 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use fedimint_api_client::api::{
-    FederationApiExt, FederationResult, IModuleFederationApi, PeerError, PeerResult,
+    FederationApiExt, FederationResult, IModuleFederationApi,
 };
 use fedimint_api_client::query::FilterMapThreshold;
+use fedimint_connectors::error::ServerError;
+use fedimint_connectors::ServerResult;
 use fedimint_core::module::ApiRequestErased;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::util::SafeUrl;
@@ -24,7 +26,7 @@ pub trait LightningFederationApi {
 
     async fn gateways(&self) -> FederationResult<Vec<SafeUrl>>;
 
-    async fn gateways_from_peer(&self, peer: PeerId) -> PeerResult<Vec<SafeUrl>>;
+    async fn gateways_from_peer(&self, peer: PeerId) -> ServerResult<Vec<SafeUrl>>;
 }
 
 #[apply(async_trait_maybe_send!)]
@@ -78,7 +80,7 @@ where
         Ok(union)
     }
 
-    async fn gateways_from_peer(&self, peer: PeerId) -> PeerResult<Vec<SafeUrl>> {
+    async fn gateways_from_peer(&self, peer: PeerId) -> ServerResult<Vec<SafeUrl>> {
         let value = self
             .request_single_peer(
                 GATEWAYS_ENDPOINT.to_string(),
@@ -87,6 +89,6 @@ where
             )
             .await?;
 
-        serde_json::from_value(value).map_err(|e| PeerError::ResponseDeserialization(e.into()))
+        serde_json::from_value(value).map_err(|e| ServerError::ResponseDeserialization(e.into()))
     }
 }
