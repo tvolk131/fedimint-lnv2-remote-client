@@ -13,14 +13,14 @@ path = "bin/tests.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+bincode = { workspace = true }
 devimint = { workspace = true }
 fedimint-core = { workspace = true }
 fedimint-lnv2-common = { workspace = true }
 fedimint-lnv2-remote-client = { path = "../fedimint-lnv2-remote-client" }
-serde_json = { workspace = true }
-tracing = { workspace = true }
-tokio = { workspace = true }
+hex = { workspace = true }
 lightning-invoice = { workspace = true }
-substring = "1.4.5"
-bincode = { version = "2.0.1", features = ["serde"] }
-hex = { version = "0.4.3" }
+serde_json = { workspace = true }
+substring = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }

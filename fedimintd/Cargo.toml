@@ -18,4 +18,4 @@ tokio = { workspace = true }
 fedimint-core = { workspace = true }
 
 [build-dependencies]
-fedimint-build = "0.9.0"
+fedimint-build = { workspace = true }
