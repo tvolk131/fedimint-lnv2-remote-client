@@ -28,21 +28,23 @@ use fedimint_client_module::module::{ClientContext, ClientModule};
 use fedimint_client_module::sm::{Context, DynState, ModuleNotifier, State, StateTransition};
 use fedimint_client_module::transaction::{ClientInput, ClientInputBundle};
 use fedimint_client_module::{DynGlobalClientContext, sm_enum_variant_translation};
+use fedimint_connectors::error::ServerError;
 use fedimint_core::config::FederationId;
 use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind, OperationId};
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
-    ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion, ModuleInit,
-    MultiApiVersion,
+    ApiAuth, ApiVersion, Amounts, CommonModuleInit, ModuleCommon, ModuleConsensusVersion,
+    ModuleInit, MultiApiVersion,
 };
 use fedimint_core::time::duration_since_epoch;
 use fedimint_core::util::SafeUrl;
 use fedimint_core::{Amount, OutPoint, apply, async_trait_maybe_send};
+use fedimint_ln_common::client::GatewayApi;
 use fedimint_lnv2_common::config::LightningClientConfig;
 use fedimint_lnv2_common::contracts::{IncomingContract, PaymentImage};
 use fedimint_lnv2_common::gateway_api::{
-    GatewayConnection, GatewayConnectionError, PaymentFee, RealGatewayConnection, RoutingInfo,
+    GatewayConnection, PaymentFee, RealGatewayConnection, RoutingInfo,
 };
 use fedimint_lnv2_common::{
     Bolt11InvoiceDescription, ContractId, LightningInput, LightningInputV0, LightningModuleTypes,
@@ -105,8 +107,29 @@ pub struct LightningRemoteClientInit {
 
 impl Default for LightningRemoteClientInit {
     fn default() -> Self {
+        use fedimint_connectors::ConnectorRegistry;
+        use std::sync::LazyLock;
+        
+        // Use LazyLock to ensure connectors are initialized only once.
+        // Note: We create a new runtime here because this is called from a
+        // synchronous context (Default trait) and we need to call async code
+        // (ConnectorRegistry::bind). This is safe because the runtime is only
+        // used during initialization and is immediately dropped.
+        static CONNECTORS: LazyLock<ConnectorRegistry> = LazyLock::new(|| {
+            tokio::runtime::Runtime::new()
+                .expect("Failed to create runtime for connector registry initialization")
+                .block_on(async {
+                    ConnectorRegistry::build_from_client_defaults()
+                        .bind()
+                        .await
+                        .expect("Failed to build connector registry")
+                })
+        });
+        
+        let gateway_api = GatewayApi::new(None, CONNECTORS.clone());
+        
         LightningRemoteClientInit {
-            gateway_conn: Arc::new(RealGatewayConnection),
+            gateway_conn: Arc::new(RealGatewayConnection { api: gateway_api }),
         }
     }
 }
@@ -182,18 +205,50 @@ impl ClientModule for LightningClientModule {
 
     fn input_fee(
         &self,
-        amount: Amount,
+        amounts: &Amounts,
         _input: &<Self::Common as ModuleCommon>::Input,
-    ) -> Option<Amount> {
-        Some(self.cfg.fee_consensus.fee(amount))
+    ) -> Option<Amounts> {
+        // For multi-currency support, we need to calculate fees for each amount
+        let mut fee_amounts = Amounts::ZERO;
+        for (unit, amount) in amounts.iter() {
+            let fee = self.cfg.fee_consensus.fee(*amount);
+            // Note: Fee calculation overflow should never occur in practice since
+            // fees are always a small percentage of the amount. If it does occur,
+            // it indicates a serious bug or configuration error that should be
+            // caught during development.
+            fee_amounts = fee_amounts
+                .checked_add(&Amounts::new_custom(*unit, fee))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Input fee calculation overflow for unit {unit:?}, amount {amount}, fee {fee}"
+                    )
+                });
+        }
+        Some(fee_amounts)
     }
 
     fn output_fee(
         &self,
-        amount: Amount,
+        amounts: &Amounts,
         _output: &<Self::Common as ModuleCommon>::Output,
-    ) -> Option<Amount> {
-        Some(self.cfg.fee_consensus.fee(amount))
+    ) -> Option<Amounts> {
+        // For multi-currency support, we need to calculate fees for each amount
+        let mut fee_amounts = Amounts::ZERO;
+        for (unit, amount) in amounts.iter() {
+            let fee = self.cfg.fee_consensus.fee(*amount);
+            // Note: Fee calculation overflow should never occur in practice since
+            // fees are always a small percentage of the amount. If it does occur,
+            // it indicates a serious bug or configuration error that should be
+            // caught during development.
+            fee_amounts = fee_amounts
+                .checked_add(&Amounts::new_custom(*unit, fee))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Output fee calculation overflow for unit {unit:?}, amount {amount}, fee {fee}"
+                    )
+                });
+        }
+        Some(fee_amounts)
     }
 
     #[cfg(feature = "cli")]
@@ -263,7 +318,7 @@ impl LightningClientModule {
     async fn routing_info(
         &self,
         gateway: &SafeUrl,
-    ) -> Result<Option<RoutingInfo>, GatewayConnectionError> {
+    ) -> Result<Option<RoutingInfo>, ServerError> {
         self.gateway_conn
             .routing_info(gateway.clone(), &self.federation_id)
             .await
@@ -457,7 +512,7 @@ impl LightningClientModule {
                         claimable_contract.outpoint,
                         agg_decryption_key,
                     )),
-                    amount: claimable_contract.contract.commitment.amount,
+                    amounts: Amounts::new_bitcoin(claimable_contract.contract.commitment.amount),
                     keys: vec![claim_keypair],
                 });
             }
@@ -516,7 +571,7 @@ impl LightningClientModule {
                 gateway.clone(),
                 self.routing_info(&gateway)
                     .await
-                    .map_err(RemoteReceiveError::GatewayConnectionError)?
+                    .map_err(|e| RemoteReceiveError::GatewayConnectionError(e.to_string()))?
                     .ok_or(RemoteReceiveError::UnknownFederation)?,
             ),
             None => self
@@ -571,7 +626,7 @@ impl LightningClientModule {
                 expiry_secs,
             )
             .await
-            .map_err(RemoteReceiveError::GatewayConnectionError)?;
+            .map_err(|e| RemoteReceiveError::GatewayConnectionError(e.to_string()))?;
 
         if invoice.payment_hash() != &preimage.consensus_hash() {
             return Err(RemoteReceiveError::InvalidInvoicePaymentHash);
@@ -669,7 +724,7 @@ pub enum RemoteReceiveError {
     #[error("Failed to select gateway: {0}")]
     FailedToSelectGateway(SelectGatewayError),
     #[error("Gateway connection error: {0}")]
-    GatewayConnectionError(GatewayConnectionError),
+    GatewayConnectionError(String),
     #[error("The gateway does not support our federation")]
     UnknownFederation,
     #[error("The gateways fee exceeds the limit")]

@@ -1,6 +1,6 @@
 {
   inputs = {
-    fedimint.url = "github:fedimint/fedimint?rev=68b2c9b4a7e0faf123b470446c030459686667b5";
+    fedimint.url = "github:fedimint/fedimint?rev=76f6c7ce5435a609a256d58b0924161c5fc9b3ec";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
