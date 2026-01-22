@@ -110,7 +110,11 @@ impl Default for LightningRemoteClientInit {
         use fedimint_connectors::ConnectorRegistry;
         use std::sync::LazyLock;
         
-        // Use LazyLock to ensure connectors are initialized only once
+        // Use LazyLock to ensure connectors are initialized only once.
+        // Note: We create a new runtime here because this is called from a
+        // synchronous context (Default trait) and we need to call async code
+        // (ConnectorRegistry::bind). This is safe because the runtime is only
+        // used during initialization and is immediately dropped.
         static CONNECTORS: LazyLock<ConnectorRegistry> = LazyLock::new(|| {
             tokio::runtime::Runtime::new()
                 .expect("Failed to create runtime for connector registry initialization")
@@ -208,6 +212,10 @@ impl ClientModule for LightningClientModule {
         let mut fee_amounts = Amounts::ZERO;
         for (unit, amount) in amounts.iter() {
             let fee = self.cfg.fee_consensus.fee(*amount);
+            // Note: Fee calculation overflow should never occur in practice since
+            // fees are always a small percentage of the amount. If it does occur,
+            // it indicates a serious bug or configuration error that should be
+            // caught during development.
             fee_amounts = fee_amounts
                 .checked_add(&Amounts::new_custom(*unit, fee))
                 .unwrap_or_else(|| {
@@ -228,6 +236,10 @@ impl ClientModule for LightningClientModule {
         let mut fee_amounts = Amounts::ZERO;
         for (unit, amount) in amounts.iter() {
             let fee = self.cfg.fee_consensus.fee(*amount);
+            // Note: Fee calculation overflow should never occur in practice since
+            // fees are always a small percentage of the amount. If it does occur,
+            // it indicates a serious bug or configuration error that should be
+            // caught during development.
             fee_amounts = fee_amounts
                 .checked_add(&Amounts::new_custom(*unit, fee))
                 .unwrap_or_else(|| {
