@@ -2103,7 +2103,7 @@ dependencies = [
  "esplora-client",
  "fedimint-aead",
  "fedimint-api-client",
- "fedimint-build",
+ "fedimint-build 0.9.0",
  "fedimint-client",
  "fedimint-client-module",
  "fedimint-core",
@@ -2591,11 +2591,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "fedimint-build"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b326e2449dcae9d4a262f2995474492fea60dba319b950593cbfb4ed4473c778"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "fedimint-cli"
 version = "0.0.6"
 dependencies = [
  "anyhow",
- "fedimint-build",
+ "fedimint-build 0.10.0",
  "fedimint-cli 0.9.0",
  "fedimint-core",
  "fedimint-lnv2-remote-client",
@@ -2618,7 +2627,7 @@ dependencies = [
  "fedimint-aead",
  "fedimint-api-client",
  "fedimint-bip39",
- "fedimint-build",
+ "fedimint-build 0.9.0",
  "fedimint-client",
  "fedimint-core",
  "fedimint-cursed-redb",
@@ -2657,7 +2666,7 @@ dependencies = [
  "bitcoin",
  "fedimint-aead",
  "fedimint-api-client",
- "fedimint-build",
+ "fedimint-build 0.9.0",
  "fedimint-client-module",
  "fedimint-core",
  "fedimint-derive-secret",
@@ -2686,7 +2695,7 @@ dependencies = [
  "async-trait",
  "bitcoin",
  "fedimint-api-client",
- "fedimint-build",
+ "fedimint-build 0.9.0",
  "fedimint-core",
  "fedimint-derive-secret",
  "fedimint-eventlog",
@@ -3295,7 +3304,7 @@ dependencies = [
  "fedimint-aead",
  "fedimint-aleph-bft",
  "fedimint-api-client",
- "fedimint-build",
+ "fedimint-build 0.9.0",
  "fedimint-core",
  "fedimint-logging",
  "fedimint-metrics",
@@ -3604,7 +3613,7 @@ name = "fedimintd"
 version = "0.0.6"
 dependencies = [
  "anyhow",
- "fedimint-build",
+ "fedimint-build 0.10.0",
  "fedimint-core",
  "fedimintd 0.9.0",
  "tokio",
@@ -3619,7 +3628,7 @@ dependencies = [
  "anyhow",
  "bitcoin",
  "clap",
- "fedimint-build",
+ "fedimint-build 0.9.0",
  "fedimint-core",
  "fedimint-ln-common",
  "fedimint-ln-server",
