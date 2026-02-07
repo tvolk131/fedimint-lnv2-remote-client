@@ -66,6 +66,15 @@ async fn main() -> anyhow::Result<()> {
             )
             .await?;
 
+            info!("Testing partially claimed batch");
+            test_partially_claimed_batch(
+                &dev_fed,
+                fed.new_joined_client("client8").await?,
+                fed.new_joined_client("client9").await?,
+                &ldk_gw_addr,
+            )
+            .await?;
+
             info!("Successfully completed fedimint-lnv2-remote test");
 
             Ok(())
@@ -426,4 +435,61 @@ async fn claim_contracts(
     )
     .run()
     .await
+}
+
+async fn test_partially_claimed_batch(
+    dev_fed: &DevJitFed,
+    receiver_client: Client,
+    claimer_client: Client,
+    gw_addr: &str,
+) -> anyhow::Result<()> {
+    const INVOICES_COUNT: usize = 3;
+
+    let claimer_pk = get_public_key(&claimer_client).await?;
+
+    // Create multiple invoices
+    let mut invoices = Vec::new();
+    for _ in 0..INVOICES_COUNT {
+        invoices.push(
+            remote_receive(&receiver_client, claimer_pk, &PAYMENT_AMOUNT, None, gw_addr).await?,
+        );
+    }
+
+    // Pay all invoices
+    for (invoice, _operation_id) in &invoices {
+        dev_fed
+            .lnd()
+            .await
+            .unwrap()
+            .pay_bolt11_invoice(invoice.to_string())
+            .await
+            .unwrap();
+    }
+
+    // Wait for all invoices to be funded
+    for (_invoice, operation_id) in invoices {
+        await_remote_receive(&receiver_client, operation_id).await?;
+    }
+
+    let claimable_contracts = get_claimable_contracts(&receiver_client, claimer_pk, None).await?;
+    assert_eq!(claimable_contracts.len(), INVOICES_COUNT);
+
+    // Claim the first contract individually
+    claim_contracts(&claimer_client, &[claimable_contracts[0].clone()]).await?;
+
+    // Now try to claim all contracts in a batch (including the already-claimed one)
+    // This should trigger the fallback to individual claims
+    claim_contracts(&claimer_client, &claimable_contracts).await?;
+
+    // Verify the claimer has all the funds
+    // The first contract should not be double-claimed
+    let expected_balance = POST_PAYMENT_AMOUNT * INVOICES_COUNT as u64;
+    assert_eq!(
+        Amount {
+            msats: claimer_client.balance().await.unwrap()
+        },
+        expected_balance
+    );
+
+    Ok(())
 }
