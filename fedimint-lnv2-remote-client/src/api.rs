@@ -1,11 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use fedimint_api_client::api::{
-    FederationApiExt, FederationResult, IModuleFederationApi,
-};
+use fedimint_api_client::api::{FederationApiExt, FederationResult, IModuleFederationApi};
 use fedimint_api_client::query::FilterMapThreshold;
-use fedimint_connectors::error::ServerError;
 use fedimint_connectors::ServerResult;
+use fedimint_connectors::error::ServerError;
 use fedimint_core::module::ApiRequestErased;
 use fedimint_core::task::{MaybeSend, MaybeSync};
 use fedimint_core::util::SafeUrl;

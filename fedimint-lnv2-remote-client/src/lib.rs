@@ -34,7 +34,7 @@ use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
-    ApiAuth, ApiVersion, Amounts, CommonModuleInit, ModuleCommon, ModuleConsensusVersion,
+    Amounts, ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion,
     ModuleInit, MultiApiVersion,
 };
 use fedimint_core::time::duration_since_epoch;
@@ -109,7 +109,7 @@ impl Default for LightningRemoteClientInit {
     fn default() -> Self {
         use fedimint_connectors::ConnectorRegistry;
         use std::sync::LazyLock;
-        
+
         // Use LazyLock to ensure connectors are initialized only once.
         // Note: We create a new runtime here because this is called from a
         // synchronous context (Default trait) and we need to call async code
@@ -125,9 +125,9 @@ impl Default for LightningRemoteClientInit {
                         .expect("Failed to build connector registry")
                 })
         });
-        
+
         let gateway_api = GatewayApi::new(None, CONNECTORS.clone());
-        
+
         LightningRemoteClientInit {
             gateway_conn: Arc::new(RealGatewayConnection { api: gateway_api }),
         }
@@ -315,10 +315,7 @@ impl LightningClientModule {
         Err(SelectGatewayError::FailedToFetchRoutingInfo)
     }
 
-    async fn routing_info(
-        &self,
-        gateway: &SafeUrl,
-    ) -> Result<Option<RoutingInfo>, ServerError> {
+    async fn routing_info(&self, gateway: &SafeUrl) -> Result<Option<RoutingInfo>, ServerError> {
         self.gateway_conn
             .routing_info(gateway.clone(), &self.federation_id)
             .await
