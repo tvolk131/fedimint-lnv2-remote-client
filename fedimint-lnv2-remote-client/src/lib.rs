@@ -302,10 +302,18 @@ impl LightningClientModule {
             )
             .await?;
 
-        let operation_id = self
-            .start_remote_receive_state_machine(contract.clone(), claimer_pk)
-            .await;
+        let operation_id = OperationId::from_encodable(&contract);
+        let receive_sm = LightningClientStateMachines::RemoteReceive(RemoteReceiveStateMachine {
+            common: RemoteReceiveSMCommon {
+                operation_id,
+                claimer_pubkey: claimer_pk,
+                contract: contract.clone(),
+            },
+            state: RemoteReceiveSMState::Pending,
+        });
 
+        // Persist the unfunded contract and start the operation atomically so
+        // the state machine can never finalize without a corresponding DB row.
         self.client_ctx
             .module_db()
             .autocommit(
@@ -319,6 +327,19 @@ impl LightningClientModule {
                             },
                         )
                         .await;
+
+                        self.client_ctx
+                            .manual_operation_start_dbtx(
+                                dbtx,
+                                operation_id,
+                                LightningRemoteCommonInit::KIND.as_str(),
+                                OperationMeta {
+                                    contract: contract.clone(),
+                                },
+                                vec![self.client_ctx.make_dyn_state(receive_sm.clone())],
+                            )
+                            .await
+                            .expect("Operation id collision should be impossible");
 
                         Ok::<(), ()>(())
                     })
@@ -582,39 +603,6 @@ impl LightningClientModule {
         }
 
         Ok((invoice, contract))
-    }
-
-    /// Start a remote receive state machine that waits
-    /// for an incoming contract to be funded or to expire.
-    async fn start_remote_receive_state_machine(
-        &self,
-        contract: IncomingContract,
-        claimer_pubkey: PublicKey,
-    ) -> OperationId {
-        let operation_id = OperationId::from_encodable(&contract.clone());
-
-        let receive_sm = LightningClientStateMachines::RemoteReceive(RemoteReceiveStateMachine {
-            common: RemoteReceiveSMCommon {
-                operation_id,
-                claimer_pubkey,
-                contract: contract.clone(),
-            },
-            state: RemoteReceiveSMState::Pending,
-        });
-
-        // this may only fail if the operation id is already in use, in which case we
-        // ignore the error such that the method is idempotent
-        self.client_ctx
-            .manual_operation_start(
-                operation_id,
-                LightningRemoteCommonInit::KIND.as_str(),
-                OperationMeta { contract },
-                vec![self.client_ctx.make_dyn_state(receive_sm)],
-            )
-            .await
-            .ok();
-
-        operation_id
     }
 
     fn recover_contract_keys(
