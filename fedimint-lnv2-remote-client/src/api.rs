@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use fedimint_api_client::api::{
-    FederationApiExt, FederationResult, IModuleFederationApi, PeerError, PeerResult,
+    FederationApiExt, FederationResult, IModuleFederationApi, ServerResult,
 };
 use fedimint_api_client::query::FilterMapThreshold;
 use fedimint_core::module::ApiRequestErased;
@@ -24,7 +24,7 @@ pub trait LightningFederationApi {
 
     async fn gateways(&self) -> FederationResult<Vec<SafeUrl>>;
 
-    async fn gateways_from_peer(&self, peer: PeerId) -> PeerResult<Vec<SafeUrl>>;
+    async fn gateways_from_peer(&self, peer: PeerId) -> ServerResult<Vec<SafeUrl>>;
 }
 
 #[apply(async_trait_maybe_send!)]
@@ -78,15 +78,12 @@ where
         Ok(union)
     }
 
-    async fn gateways_from_peer(&self, peer: PeerId) -> PeerResult<Vec<SafeUrl>> {
-        let value = self
-            .request_single_peer(
-                GATEWAYS_ENDPOINT.to_string(),
-                ApiRequestErased::default(),
-                peer,
-            )
-            .await?;
-
-        serde_json::from_value(value).map_err(|e| PeerError::ResponseDeserialization(e.into()))
+    async fn gateways_from_peer(&self, peer: PeerId) -> ServerResult<Vec<SafeUrl>> {
+        self.request_single_peer(
+            GATEWAYS_ENDPOINT.to_string(),
+            ApiRequestErased::default(),
+            peer,
+        )
+        .await
     }
 }

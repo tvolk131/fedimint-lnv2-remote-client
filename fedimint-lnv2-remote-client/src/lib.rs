@@ -21,7 +21,7 @@ use db::{
     ClaimedContractKey, FundedContractKey, FundedContractKeyPrefix, UnfundedContractInfo,
     UnfundedContractKey,
 };
-use fedimint_api_client::api::DynModuleApi;
+use fedimint_api_client::api::{DynModuleApi, ServerError};
 use fedimint_client_module::module::init::{ClientModuleInit, ClientModuleInitArgs};
 use fedimint_client_module::module::recovery::NoModuleBackup;
 use fedimint_client_module::module::{ClientContext, ClientModule};
@@ -33,8 +33,8 @@ use fedimint_core::core::{Decoder, IntoDynInstance, ModuleInstanceId, ModuleKind
 use fedimint_core::db::{DatabaseTransaction, IDatabaseTransactionOpsCoreTyped};
 use fedimint_core::encoding::{Decodable, Encodable};
 use fedimint_core::module::{
-    ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion, ModuleInit,
-    MultiApiVersion,
+    Amounts, ApiAuth, ApiVersion, CommonModuleInit, ModuleCommon, ModuleConsensusVersion,
+    ModuleInit, MultiApiVersion,
 };
 use fedimint_core::time::duration_since_epoch;
 use fedimint_core::util::SafeUrl;
@@ -42,11 +42,11 @@ use fedimint_core::{Amount, OutPoint, apply, async_trait_maybe_send};
 use fedimint_lnv2_common::config::LightningClientConfig;
 use fedimint_lnv2_common::contracts::{IncomingContract, PaymentImage};
 use fedimint_lnv2_common::gateway_api::{
-    GatewayConnection, GatewayConnectionError, PaymentFee, RealGatewayConnection, RoutingInfo,
+    GatewayConnection, PaymentFee, RealGatewayConnection, RoutingInfo,
 };
 use fedimint_lnv2_common::{
-    Bolt11InvoiceDescription, ContractId, LightningInput, LightningInputV0, LightningModuleTypes,
-    MODULE_CONSENSUS_VERSION,
+    Bolt11InvoiceDescription, ContractId, GatewayApi, LightningInput, LightningInputV0,
+    LightningModuleTypes, MODULE_CONSENSUS_VERSION,
 };
 use futures::StreamExt;
 use lightning_invoice::Bolt11Invoice;
@@ -98,17 +98,9 @@ impl CommonModuleInit for LightningRemoteCommonInit {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LightningRemoteClientInit {
-    pub gateway_conn: Arc<dyn GatewayConnection + Send + Sync>,
-}
-
-impl Default for LightningRemoteClientInit {
-    fn default() -> Self {
-        LightningRemoteClientInit {
-            gateway_conn: Arc::new(RealGatewayConnection),
-        }
-    }
+    pub gateway_conn: Option<Arc<dyn GatewayConnection + Send + Sync>>,
 }
 
 impl ModuleInit for LightningRemoteClientInit {
@@ -133,6 +125,12 @@ impl ClientModuleInit for LightningRemoteClientInit {
     }
 
     async fn init(&self, args: &ClientModuleInitArgs<Self>) -> anyhow::Result<Self::Module> {
+        let gateway_conn = self.gateway_conn.clone().unwrap_or_else(|| {
+            Arc::new(RealGatewayConnection {
+                api: GatewayApi::new(None, args.connector_registry().clone()),
+            })
+        });
+
         Ok(LightningClientModule::new(
             *args.federation_id(),
             args.cfg().clone(),
@@ -142,7 +140,7 @@ impl ClientModuleInit for LightningRemoteClientInit {
             args.module_root_secret()
                 .clone()
                 .to_secp_key(fedimint_core::secp256k1::SECP256K1),
-            self.gateway_conn.clone(),
+            gateway_conn,
             args.admin_auth().cloned(),
         ))
     }
@@ -182,18 +180,22 @@ impl ClientModule for LightningClientModule {
 
     fn input_fee(
         &self,
-        amount: Amount,
+        amounts: &Amounts,
         _input: &<Self::Common as ModuleCommon>::Input,
-    ) -> Option<Amount> {
-        Some(self.cfg.fee_consensus.fee(amount))
+    ) -> Option<Amounts> {
+        Some(Amounts::new_bitcoin(
+            self.cfg.fee_consensus.fee(amounts.expect_only_bitcoin()),
+        ))
     }
 
     fn output_fee(
         &self,
-        amount: Amount,
+        amounts: &Amounts,
         _output: &<Self::Common as ModuleCommon>::Output,
-    ) -> Option<Amount> {
-        Some(self.cfg.fee_consensus.fee(amount))
+    ) -> Option<Amounts> {
+        Some(Amounts::new_bitcoin(
+            self.cfg.fee_consensus.fee(amounts.expect_only_bitcoin()),
+        ))
     }
 
     #[cfg(feature = "cli")]
@@ -260,10 +262,7 @@ impl LightningClientModule {
         Err(SelectGatewayError::FailedToFetchRoutingInfo)
     }
 
-    async fn routing_info(
-        &self,
-        gateway: &SafeUrl,
-    ) -> Result<Option<RoutingInfo>, GatewayConnectionError> {
+    async fn routing_info(&self, gateway: &SafeUrl) -> Result<Option<RoutingInfo>, ServerError> {
         self.gateway_conn
             .routing_info(gateway.clone(), &self.federation_id)
             .await
@@ -478,7 +477,7 @@ impl LightningClientModule {
                         claimable_contract.outpoint,
                         agg_decryption_key,
                     )),
-                    amount: claimable_contract.contract.commitment.amount,
+                    amounts: Amounts::new_bitcoin(claimable_contract.contract.commitment.amount),
                     keys: vec![claim_keypair],
                 });
             }
@@ -652,12 +651,12 @@ pub enum SelectGatewayError {
     FailedToFetchRoutingInfo,
 }
 
-#[derive(Error, Debug, Clone, Eq, PartialEq)]
+#[derive(Error, Debug)]
 pub enum RemoteReceiveError {
     #[error("Failed to select gateway: {0}")]
     FailedToSelectGateway(SelectGatewayError),
     #[error("Gateway connection error: {0}")]
-    GatewayConnectionError(GatewayConnectionError),
+    GatewayConnectionError(ServerError),
     #[error("The gateway does not support our federation")]
     UnknownFederation,
     #[error("The gateways fee exceeds the limit")]
