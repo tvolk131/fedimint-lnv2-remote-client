@@ -45,7 +45,7 @@ clap = { version = "4.5.60", features = [
     "suggestions",
     "env",
 ], default-features = false }
-futures = "0.3.28"
+futures = "0.3.32"
 erased-serde = "0.4.9"
 hex = "0.4.3"
 lightning-invoice = "0.33.2"
