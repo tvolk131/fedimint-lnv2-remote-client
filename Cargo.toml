@@ -36,7 +36,7 @@ aquamarine = "0.6.0"
 bincode = { version = "2.0.1", features = ["serde"] }
 bitcoin = { version = "0.32.8", features = ["serde"] }
 anyhow = "1.0.102"
-clap = { version = "4.5.60", features = [
+clap = { version = "4.6.0", features = [
     "derive",
     "std",
     "help",
