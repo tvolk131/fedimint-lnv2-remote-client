@@ -50,7 +50,7 @@ erased-serde = "0.4.10"
 hex = "0.4.3"
 lightning-invoice = "0.33.2"
 tracing = "0.1.44"
-rand = "0.10.0"
+rand = "0.10.1"
 secp256k1 = "0.29.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149", features = ["preserve_order"] }
