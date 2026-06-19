@@ -2638,7 +2638,7 @@ dependencies = [
  "futures",
  "hex",
  "itertools 0.14.0",
- "lightning-invoice",
+ "lightning-invoice 0.33.3",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -2788,8 +2788,8 @@ dependencies = [
  "js-sys",
  "jsonrpsee-core",
  "lightning",
- "lightning-invoice",
- "lightning-types",
+ "lightning-invoice 0.33.3",
+ "lightning-types 0.2.0",
  "macro_rules_attribute",
  "miniscript",
  "n0-future",
@@ -2904,7 +2904,7 @@ dependencies = [
  "fedimint-lnv2-common",
  "fedimint-mint-client",
  "fedimint-wallet-client",
- "lightning-invoice",
+ "lightning-invoice 0.33.3",
  "serde",
  "serde_json",
 ]
@@ -2941,7 +2941,7 @@ dependencies = [
  "fedimint-logging",
  "futures",
  "itertools 0.14.0",
- "lightning-invoice",
+ "lightning-invoice 0.33.3",
  "lnurl-rs",
  "rand 0.8.5",
  "reqwest",
@@ -2969,7 +2969,7 @@ dependencies = [
  "fedimint-threshold-crypto",
  "iroh 0.35.0",
  "lightning",
- "lightning-invoice",
+ "lightning-invoice 0.33.3",
  "reqwest",
  "serde",
  "serde-big-array",
@@ -3027,7 +3027,7 @@ dependencies = [
  "fedimint-tpe",
  "futures",
  "itertools 0.14.0",
- "lightning-invoice",
+ "lightning-invoice 0.33.3",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -3051,7 +3051,7 @@ dependencies = [
  "fedimint-ln-common",
  "fedimint-tpe",
  "group",
- "lightning-invoice",
+ "lightning-invoice 0.33.3",
  "lnurl-rs",
  "rand 0.8.5",
  "reqwest",
@@ -3080,7 +3080,7 @@ dependencies = [
  "fedimint-tpe",
  "futures",
  "hex",
- "lightning-invoice",
+ "lightning-invoice 0.34.1",
  "rand 0.10.1",
  "serde",
  "serde_json",
@@ -3100,7 +3100,7 @@ dependencies = [
  "fedimint-lnv2-common",
  "fedimint-lnv2-remote-client",
  "hex",
- "lightning-invoice",
+ "lightning-invoice 0.34.1",
  "serde_json",
  "substring",
  "tokio",
@@ -5668,21 +5668,32 @@ dependencies = [
  "dnssec-prover",
  "hashbrown 0.13.2",
  "libm",
- "lightning-invoice",
- "lightning-types",
+ "lightning-invoice 0.33.3",
+ "lightning-types 0.2.0",
  "possiblyrandom",
 ]
 
 [[package]]
 name = "lightning-invoice"
-version = "0.33.2"
+version = "0.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11209f386879b97198b2bfc9e9c1e5d42870825c6bd4376f17f95357244d6600"
+checksum = "b39b494954ed8f1d774d86473224fadf9f0dfcca38c2d16a7dbdf2b5800c8943"
 dependencies = [
  "bech32",
  "bitcoin",
- "lightning-types",
+ "lightning-types 0.2.0",
  "serde",
+]
+
+[[package]]
+name = "lightning-invoice"
+version = "0.34.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d83bd798e04ab9eecc8bbef1fa17d3808859bcdc0406bd16c55d51c8834444"
+dependencies = [
+ "bech32",
+ "bitcoin",
+ "lightning-types 0.3.2",
 ]
 
 [[package]]
@@ -5690,6 +5701,15 @@ name = "lightning-types"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2cd84d4e71472035903e43caded8ecc123066ce466329ccd5ae537a8d5488c7"
+dependencies = [
+ "bitcoin",
+]
+
+[[package]]
+name = "lightning-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c211dfcff95ca308247da8b1e0e81604bc9e568239967cd2c34572558511e869"
 dependencies = [
  "bitcoin",
 ]
