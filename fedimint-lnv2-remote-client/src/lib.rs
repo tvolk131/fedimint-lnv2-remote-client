@@ -5,6 +5,8 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate)]
 
+pub use fedimint_lnv2_common as common;
+
 mod api;
 #[cfg(feature = "cli")]
 mod cli;
@@ -361,29 +363,39 @@ impl LightningClientModule {
         let operation = self.client_ctx.get_operation(operation_id).await?;
         let mut stream = self.notifier.subscribe(operation_id).await;
 
-        // TODO: Do we need to use `outcome_or_updates` here?
-        // I'm using it here because the LNv2 client does.
-        Ok(self.client_ctx.outcome_or_updates(operation, operation_id, || {
-            stream! {
-                loop {
-                    if let Some(LightningClientStateMachines::RemoteReceive(state)) = stream.next().await {
-                        match state.state {
-                            // If receive is pending, yield nothing and wait for
-                            // the next item from the stream, i.e. continue.
-                            RemoteReceiveSMState::Pending => {},
-                            RemoteReceiveSMState::Funded => {
-                                yield FinalRemoteReceiveOperationState::Funded;
-                                return;
-                            },
-                            RemoteReceiveSMState::Expired => {
-                                yield FinalRemoteReceiveOperationState::Expired;
-                                return;
-                            },
+        // Consume the stream to completion so `outcome_or_updates` caches the
+        // final operation outcome for subsequent calls.
+        let mut stream = self
+            .client_ctx
+            .outcome_or_updates(operation, operation_id, || {
+                stream! {
+                    loop {
+                        if let Some(LightningClientStateMachines::RemoteReceive(state)) = stream.next().await {
+                            match state.state {
+                                // If receive is pending, yield nothing and wait for
+                                // the next item from the stream, i.e. continue.
+                                RemoteReceiveSMState::Pending => {},
+                                RemoteReceiveSMState::Funded => {
+                                    yield FinalRemoteReceiveOperationState::Funded;
+                                    return;
+                                },
+                                RemoteReceiveSMState::Expired => {
+                                    yield FinalRemoteReceiveOperationState::Expired;
+                                    return;
+                                },
+                            }
                         }
                     }
                 }
-            }
-        }).into_stream().next().await.expect("Stream contains one final state"))
+            })
+            .into_stream();
+
+        let mut final_state = None;
+        while let Some(state) = stream.next().await {
+            final_state = Some(state);
+        }
+
+        Ok(final_state.expect("Stream contains one final state"))
     }
 
     /// Call this on a remote receiver to get a list of claimable contracts.
