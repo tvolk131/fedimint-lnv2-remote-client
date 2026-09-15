@@ -11,7 +11,10 @@ mod api;
 #[cfg(feature = "cli")]
 mod cli;
 mod db;
+mod receive;
 mod remote_receive_sm;
+
+pub use receive::{RemoteReceiveReceipt, RemoteReceiveRequest};
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -293,6 +296,65 @@ impl LightningClientModule {
         description: Bolt11InvoiceDescription,
         gateway: Option<SafeUrl>,
     ) -> Result<(Bolt11Invoice, OperationId), RemoteReceiveError> {
+        self.remote_receive_inner(claimer_pk, amount, expiry_secs, description, gateway, None)
+            .await
+    }
+
+    /// Read a committed creation receipt without contacting a gateway or
+    /// creating an invoice. `None` means no receive operation committed for this
+    /// ID; it is not evidence that a concurrent request cannot still commit.
+    pub async fn recover_remote_receive(
+        &self,
+        request_id: [u8; 32],
+    ) -> Option<RemoteReceiveReceipt> {
+        self.client_ctx
+            .module_db()
+            .begin_transaction_nc()
+            .await
+            .get_value(&db::ReceiveRequestKey(request_id))
+            .await
+    }
+
+    /// Create or recover one logical invoice request. The receipt, operation log
+    /// and state machine commit atomically. Concurrent calls with the same ID
+    /// return the same winner; invoices fetched by losing calls are never exposed.
+    /// A retry with different parameters is rejected, including after expiration.
+    pub async fn remote_receive_idempotent(
+        &self,
+        request: RemoteReceiveRequest,
+    ) -> Result<RemoteReceiveReceipt, RemoteReceiveError> {
+        if let Some(receipt) = self.recover_remote_receive(request.id).await {
+            return if receipt.matches_request(&request) {
+                Ok(receipt)
+            } else {
+                Err(RemoteReceiveError::RequestConflict)
+            };
+        }
+        let fingerprint = request.fingerprint();
+        self.remote_receive_inner(
+            request.claimer_pk,
+            request.amount,
+            request.expiry_secs,
+            request.description,
+            request.gateway,
+            Some((request.id, fingerprint)),
+        )
+        .await?;
+        self.recover_remote_receive(request.id)
+            .await
+            .ok_or(RemoteReceiveError::MissingReceipt)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn remote_receive_inner(
+        &self,
+        claimer_pk: PublicKey,
+        amount: Amount,
+        expiry_secs: u32,
+        description: Bolt11InvoiceDescription,
+        gateway: Option<SafeUrl>,
+        request: Option<([u8; 32], [u8; 32])>,
+    ) -> Result<(Bolt11Invoice, OperationId), RemoteReceiveError> {
         let (invoice, contract) = self
             .create_contract_and_fetch_invoice(
                 claimer_pk,
@@ -315,11 +377,18 @@ impl LightningClientModule {
 
         // Persist the unfunded contract and start the operation atomically so
         // the state machine can never finalize without a corresponding DB row.
-        self.client_ctx
+        let result = self
+            .client_ctx
             .module_db()
             .autocommit(
                 |dbtx, _| {
                     Box::pin(async {
+                        if let Some((id, fingerprint)) = request
+                            && let Some(receipt) =
+                                receive::existing_receipt(dbtx, id, fingerprint).await?
+                        {
+                            return Ok((receipt.invoice, receipt.operation_id));
+                        }
                         dbtx.insert_new_entry(
                             &UnfundedContractKey(contract.contract_id()),
                             &UnfundedContractInfo {
@@ -342,15 +411,33 @@ impl LightningClientModule {
                             .await
                             .expect("Operation id collision should be impossible");
 
-                        Ok::<(), ()>(())
+                        if let Some((request_id, request_fingerprint)) = request {
+                            dbtx.insert_new_entry(
+                                &db::ReceiveRequestKey(request_id),
+                                &RemoteReceiveReceipt {
+                                    request_id,
+                                    request_fingerprint,
+                                    operation_id,
+                                    claimer_pk,
+                                    invoice: invoice.clone(),
+                                },
+                            )
+                            .await;
+                        }
+                        Ok((invoice.clone(), operation_id))
                     })
                 },
                 None,
             )
             .await
-            .expect("Autocommit has no retry limit");
+            .map_err(|error| match error {
+                fedimint_core::db::AutocommitError::ClosureError { error, .. } => error,
+                fedimint_core::db::AutocommitError::CommitFailed { .. } => {
+                    unreachable!("autocommit has no retry limit")
+                }
+            })?;
 
-        Ok((invoice, operation_id))
+        Ok(result)
     }
 
     /// Await the final state of the remote receive operation.
@@ -665,6 +752,10 @@ pub enum SelectGatewayError {
 
 #[derive(Error, Debug)]
 pub enum RemoteReceiveError {
+    #[error("Receive request ID was reused with different parameters")]
+    RequestConflict,
+    #[error("Committed receive receipt could not be recovered")]
+    MissingReceipt,
     #[error("Failed to select gateway: {0}")]
     FailedToSelectGateway(SelectGatewayError),
     #[error("Gateway connection error: {0}")]

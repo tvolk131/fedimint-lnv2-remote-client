@@ -10,6 +10,7 @@ pub enum DbKeyPrefix {
     UnfundedContract = 0xb1,
     FundedContract = 0xb2,
     ClaimedContract = 0xb3,
+    ReceiveRequest = 0xb4,
 }
 
 #[derive(Debug, Clone, Encodable, Decodable)]
@@ -57,4 +58,14 @@ impl_db_record!(
     key = ClaimedContractKey,
     value = (),
     db_prefix = DbKeyPrefix::ClaimedContract,
+);
+
+/// Caller identities are local to this client module (and thus federation).
+#[derive(Debug, Clone, Encodable, Decodable)]
+pub struct ReceiveRequestKey(pub [u8; 32]);
+
+impl_db_record!(
+    key = ReceiveRequestKey,
+    value = crate::RemoteReceiveReceipt,
+    db_prefix = DbKeyPrefix::ReceiveRequest,
 );
